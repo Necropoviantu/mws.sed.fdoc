@@ -1,0 +1,5 @@
+<?php
+
+$MESS["MWS_SED_FDOC_USER_ID_FIELD"] = "ID";
+$MESS["MWS_SED_FDOC_USER_BASE_FIELD"] = 'Строка В BASE64';
+$MESS["MWS_SED_FDOC_USER_ID_FIELD"] = "ФИО пользователя";

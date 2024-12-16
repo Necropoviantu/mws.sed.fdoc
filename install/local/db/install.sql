@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS mws_sed_fdoc_users (
+     ID INT UNSIGNED NOT NULL,
+     BASE VARCHAR(255) DEFAULT NULL,
+    --
+    PRIMARY KEY (ID)
+    );

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS mws_sed_fdoc_users;
