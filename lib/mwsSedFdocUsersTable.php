@@ -1,6 +1,6 @@
 <?php
 
-namespace Mywebstor\Integration1c;
+namespace Mywebstor\Fdoc;
 
 use Bitrix\Main\Entity\ExpressionField;
 use Bitrix\Main\Entity\IntegerField;
@@ -13,7 +13,7 @@ use Bitrix\Main\UserTable;
 
 Loc::loadMessages(__FILE__);
 
-class Users1cTable extends DataManager
+class MwsSedFdocUsersTable extends DataManager
 {
     /**
      * Returns DB table name for entity.
