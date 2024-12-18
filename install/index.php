@@ -15,6 +15,13 @@ class mws_sed_fdoc extends CModule{
             "TO_FUNCTION" => "OnRestServiceBuildDescription",
             "VERSION" => "1"
         ),
+        array(
+            "FROM_MODULE" => "main",
+            "FROM_EVENT" => "OnEpilog",
+            "TO_CLASS" => "RegistrateJs",
+            "TO_FUNCTION" => "loadCustomJsCss",
+            "VERSION" => "1"
+        ),
     );
 
     public function __construct()
@@ -55,7 +62,7 @@ class mws_sed_fdoc extends CModule{
             $this->UnInstallFiles();
             $this->UnInstallEvents();
             \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
-            \Bitrix\Main\Config\Option::delete("mws.sed.fdoc");
+           // \Bitrix\Main\Config\Option::delete("mws.sed.fdoc");
             return true;
         }
 
