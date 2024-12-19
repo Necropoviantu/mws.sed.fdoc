@@ -6,9 +6,8 @@ $APPLICATION->SetTitle("Настройки Документооборота");
 ?>
 
     <body>
-    <script type="module" crossorigin src="/local/modules/mws.sed.fdoc/admin/assets/index-B0CJFIl8.js"></script>
-    <link rel="stylesheet" crossorigin href="/local/modules/mws.sed.fdoc/admin/assets/index-C0k3zdXZ.css">
-
+    <script type="module" crossorigin src="/local/modules/mws.sed.fdoc/admin/assets/index-CmZJN2nJ.js"></script>
+    <link rel="stylesheet" crossorigin href="/local/modules/mws.sed.fdoc/admin/assets/index-b_7rwaUO.css">
     <div id="app"></div>
 
     </body>

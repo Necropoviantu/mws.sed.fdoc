@@ -3,6 +3,7 @@
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
 use Mywebstor\Fdoc\MwsSedFdocUsersTable;
+use Mywebstor\Fdoc\MwsSedFdocSendTable;
 use \Bitrix\Main\Type\DateTime;
 
 class MwsSedFdocRest extends IRestService
@@ -27,6 +28,7 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.getAllFiles" => array(__CLASS__, "getAllFiles"),
                 "mwssedfdoc.sendSelectedFiles" => array(__CLASS__, "sendSelectedFiles"),
                 "mwssedfdoc.webhook" => array(__CLASS__, "webhook"),
+                "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
             ),
         );
     }
@@ -333,7 +335,6 @@ class MwsSedFdocRest extends IRestService
 
 
     }
-
     public static function sendWebHookFdoc($query, $nav, \CRestServer $server)
     {
 
@@ -361,12 +362,6 @@ class MwsSedFdocRest extends IRestService
                         ],
             "channelTypeCode"=> "API"
                  ];
-
-
-
-
-
-
         curl_setopt_array($curl, array(
             CURLOPT_URL => $credentials['urlApi'].'api/v1/corp/webhooks',
             CURLOPT_RETURNTRANSFER => true,
@@ -390,7 +385,6 @@ class MwsSedFdocRest extends IRestService
 
 
     }
-
     public static function getAllFiles($query, $nav, \CRestServer $server)
     {
 
@@ -426,13 +420,10 @@ class MwsSedFdocRest extends IRestService
     public static function sendSelectedFiles($query, $nav, \CRestServer $server)
     {
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
         $rows  = $query['ROWS'];
-        $dealId = $query['DEAL_ID'];
-
-
-
-
-
+        $dealId = $query['dealId'];
 
         $credentials = [
             'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
@@ -451,7 +442,8 @@ class MwsSedFdocRest extends IRestService
         $dateTime = $dateTime->add('+1 day');
 
 
-
+        $arrFiles=[];
+        $arrDoc =[];
         foreach ($rows as $row) {
 
             $document = \Bitrix\DocumentGenerator\Document::loadById($row['ID']);
@@ -475,14 +467,34 @@ class MwsSedFdocRest extends IRestService
                 'file' => base64_encode($base),
                 'unsignExpiredDate' => $dateTime->format("Y-m-d\TH:i:s\Z"),
             ];
+
+            $arrDoc[]=$file['ORIGINAL_NAME'];
         }
 
         $uidClient = md5(uniqid(rand(), true));
 
+        $res = Bitrix\Crm\DealTable::getList([
+            'filter'=>['ID'=>$dealId],
+            'runtime'=>[
+                new \Bitrix\Main\Entity\ReferenceField(
+                    'COM_NAME',
+                    Bitrix\Crm\CompanyTable::getEntity(),
+                    ['=this.COMPANY_ID'=>'ref.ID']
+                )
+            ],
+            "select"=>[
+                'UF_CRM_1693484556784',
+                'FULL_NAME'=>'COM_NAME.TITLE'
 
+            ],
 
+        ])->fetch();
 
+        $res['UF_CRM_1693484556784'] = \Bitrix\Crm\Communication\Normalizer::normalizePhone($res['UF_CRM_1693484556784']);
 
+        if(!$res['UF_CRM_1693484556784']){
+            return 'no phone';
+        }
 
 
         $docPack = [
@@ -491,14 +503,14 @@ class MwsSedFdocRest extends IRestService
                 'id' => $uidClient,
 
                 "phone" => "+79137080925", //забирать
-                "name" => "Тестов Тест Тестович",//забирать
+                "name" => "Тестовый Тест Тестикович",//забирать
 
 
                 "clientRole" => "Клиент"
             ],
             'package' => [
                 'id' => $uidClient,
-                "name" => "Документы по заявки" . $dealId,
+                "name" => "Документы по заявке" . $dealId,
                 "operatorAutoSign" => true,
             ],
         ];
@@ -560,10 +572,86 @@ class MwsSedFdocRest extends IRestService
 
         curl_close($curl);
 
+              $fromFdoc = json_decode($response, true);
 
-       return $response;
+        $res = \Mywebstor\Fdoc\MwsSedFdocSendTable::add([
+            "ENTITY_ID"=>'2',
+            "DEAL_ID" =>  $dealId,
+            "SEND_ID" => $uidClient,
+            "DOC_NAME" => implode(", ", $arrDoc),
+            "PACKAGE_URL" =>$fromFdoc['url'],
+            "DATE_CREATE" => new \Bitrix\Main\Type\DateTime(),
+        ]);
+
+        if (!$res->isSuccess()){
+
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getErrorMessages(),true),"","_SED_log.log");
+        }else{
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getID(),true),"","_SED_log.log");
+        }
 
 
+        return $response;
+
+
+
+    }
+    public static function checkSendDocs($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        $dealId=$query['dealId'];
+
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId]])->fetch();
+
+        if($result) {
+            $credentials = [
+                'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+                'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+                'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+                'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+                'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+                'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+                'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+            ];
+
+            $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+
+            $build =  http_build_query([
+                "id"=>$result['SEND_ID'],
+                "idType"=>"package",
+                "app"=>$corpId,
+                "corpId"=>$corpId,
+            ]);
+
+
+
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL =>  $credentials['urlApi'].'api/v1/document/status?'. $build ,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $response = curl_exec($curl);
+
+            curl_close($curl);
+            $result['F_DOC'] = $response;
+
+        }
+            if($result["DATE_CREATE"]) {
+                $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
+            }
+        return $result;
 
     }
 

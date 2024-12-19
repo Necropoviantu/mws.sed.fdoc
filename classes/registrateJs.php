@@ -8,15 +8,19 @@ class RegistrateJs
 {
    public static function  loadCustomJsCss()
     {
-        \CJSCore::RegisterExt("mws.sed.fdoc.button", array(
-            "js" => array(
-                "/local/modules/mws.sed.fdoc/js/addButtonSedFdoc.js"
-            )
-        ));
-        \CJSCore::Init(array(
-            "mws.sed.fdoc.button"
-        ));
+        global $USER;
 
+
+        if($USER->IsAdmin()) {
+            \CJSCore::RegisterExt("mws.sed.fdoc.button", array(
+                "js" => array(
+                    "/local/modules/mws.sed.fdoc/js/addButtonSedFdoc.js"
+                )
+            ));
+            \CJSCore::Init(array(
+                "mws.sed.fdoc.button"
+            ));
+        }
 
 
 

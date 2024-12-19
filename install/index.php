@@ -62,7 +62,7 @@ class mws_sed_fdoc extends CModule{
             $this->UnInstallFiles();
             $this->UnInstallEvents();
             \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
-           // \Bitrix\Main\Config\Option::delete("mws.sed.fdoc");
+            \Bitrix\Main\Config\Option::delete("mws.sed.fdoc");
             return true;
         }
 
@@ -134,7 +134,7 @@ class mws_sed_fdoc extends CModule{
         /** @var \CMain $APPLICATION */
         /** @var \CDatabase $DB */
         global $DB, $APPLICATION;
-        $this->errors = $DB->RunSQLBatch(__DIR__ . '/db/uninstall.sql');
+        $this->errors = $DB->RunSQLBatch(__DIR__ . '/local/db/uninstall.sql');
         if (is_array($this->errors)) {
             throw new \Exception(implode('<br />', $this->errors));
             return false;

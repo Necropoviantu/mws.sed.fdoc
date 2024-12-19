@@ -4,3 +4,13 @@ CREATE TABLE IF NOT EXISTS mws_sed_fdoc_users (
     --
     PRIMARY KEY (ID)
     );
+CREATE TABLE IF NOT EXISTS mws_sed_fdoc_send (
+        `ID` INT  NOT NULL AUTO_INCREMENT,
+        `ENTITY_ID` INT  NOT NULL,
+        `DEAL_ID` INT  NOT NULL,
+        `SEND_ID` VARCHAR(255) NOT NULL,
+        `PACKAGE_URL` VARCHAR(255),
+        `DOC_NAME` VARCHAR(255),
+        `DATE_CREATE` DATETIME,
+        PRIMARY KEY (`ID`)
+);
