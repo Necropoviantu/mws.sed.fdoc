@@ -29,6 +29,16 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.sendSelectedFiles" => array(__CLASS__, "sendSelectedFiles"),
                 "mwssedfdoc.webhook" => array(__CLASS__, "webhook"),
                 "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
+                //TODO темплейты
+                "mwssedfdoc.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
+                "mwssedfdoc.hlblock.create" => array(__CLASS__, "hlblockCreate"),
+                "mwssedfdoc.hlblock.update" => array(__CLASS__, "hlblockUpdate"),
+                "mwssedfdoc.hlblock.getList" => array(__CLASS__, "hlblockgetList"),
+                "mwssedfdoc.hlblock.delete" => array(__CLASS__, "hlblockdelete"),
+
+
+
+
             ),
         );
     }
@@ -653,6 +663,105 @@ class MwsSedFdocRest extends IRestService
             }
         return $result;
 
+    }
+    public static function getTemplatesDoc($query, $nav, \CRestServer $server)
+    {
+        $cat = $query['category'];
+
+        $res = \Bitrix\DocumentGenerator\Model\TemplateTable::getList(array(
+            "filter"=>[
+                "=PROVIDER.PROVIDER" => mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class)."_category_" . $cat,
+            ],
+
+            "select"=>['ID','NAME']
+        ));
+
+        return $res->fetchAll();
+    }
+
+    public static function hlblockCreate($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('highloadblock');
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $erorrs =[];
+        $row = $query['row'];
+        $hlEntity = $hlblockTable::add(array(
+            "UF_TEMPLATE_CATEGORY" =>  $row["UF_TEMPLATE_CATEGORY"],
+            "UF_TEMPLATE_TEMPLATES" =>  implode(', ',$row['UF_TEMPLATE_TEMPLATES']),
+        ));
+        if(!$hlEntity->isSuccess()){
+            $erorrs[] = $hlEntity->getErrorMessages();
+
+        }
+        if(!empty($erorrs)){
+            return $erorrs;
+        }else{
+            return 'Ok';
+        }
+
+    }
+    public static function hlblockUpdate($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('highloadblock');
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $erorrs =[];
+        $rawData = $query['data'];
+
+//            foreach ($query['rows'] as $row ) {
+        $hlEntity = $hlblockTable::update( $rawData['ID'],array(
+            "UF_TEMPLATE_CATEGORY" =>  $rawData["UF_TEMPLATE_CATEGORY"],
+            "UF_TEMPLATE_TEMPLATES" =>  implode(', ',$rawData['UF_TEMPLATE_TEMPLATES']),
+        ));
+        if(!$hlEntity->isSuccess()){
+            $erorrs[] = $hlEntity->getErrorMessages();
+        }
+//            }
+        if(!empty($erorrs)){
+            return $erorrs;
+        }else{
+            return 'Ok';
+        }
+    }
+    public static function hlblockgetList($query, $nav, \CRestServer $server)
+    {
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $hlEntity = $hlblockTable::getList(array(
+            "filter" => $query['filter'] ?:[],
+            "select" => ['*'],
+        ));
+        $result = [];
+
+        while ($row = $hlEntity->fetch()) {
+            $row['UF_TEMPLATE_TEMPLATES'] = explode(', ',$row['UF_TEMPLATE_TEMPLATES']);
+            $result[] = $row;
+
+        }
+
+
+
+
+        return $result;
+    }
+    public static function hlblockdelete($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('highloadblock');
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $erorrs =[];
+        foreach ($query['rows'] as $row ) {
+        $hlEntity = $hlblockTable::delete($row['ID']);
+        if(!$hlEntity->isSuccess()){
+            $erorrs[] = $hlEntity->getErrorMessages();
+        }
+         }
+        if(!empty($erorrs)){
+            return $erorrs;
+        }else{
+            return 'ok';
+        }
     }
 
 }

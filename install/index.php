@@ -45,6 +45,7 @@ class mws_sed_fdoc extends CModule{
         $this->InstallDB();
         $this->installFiles();
         $this->InstallEvents();
+        $this->installHlblock();
         \Bitrix\Main\ModuleManager::registerModule($this->MODULE_ID);
         return true;
     }
@@ -61,6 +62,7 @@ class mws_sed_fdoc extends CModule{
             }
             $this->UnInstallFiles();
             $this->UnInstallEvents();
+            $this->UnInstallHlblock();
             \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
             \Bitrix\Main\Config\Option::delete("mws.sed.fdoc");
             return true;
@@ -142,6 +144,23 @@ class mws_sed_fdoc extends CModule{
 
 
         return true;
+    }
+
+    public function installHlblock()
+    {
+        require_once(\Bitrix\Main\Application::getDocumentRoot() . '/local/modules/mws.sed.fdoc/classes/hlblock.php');
+        hlblock::hlblockAdd();
+
+        return true;
+    }
+
+    public  function unInstallHlblock()
+    {
+        require_once(\Bitrix\Main\Application::getDocumentRoot() . '/local/modules/mws.sed.fdoc/classes/hlblock.php');
+        hlblock::hlblockDelete();
+
+        return true;
+
     }
 
 }

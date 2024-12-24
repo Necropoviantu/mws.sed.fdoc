@@ -18,7 +18,7 @@ BX.ready(function () {
                     events: {
                         click: BX.proxy(openSlider, this),
                     },
-                    text: "Документы для подписания клиентом через сервис F.doc",
+                    text: "Документы на подпись",
                 })
             )
         }
