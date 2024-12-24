@@ -59,6 +59,24 @@ class MwsSedFdocSendTable extends DataManager
                 )
             ),
             new StringField(
+                'TYPE_SEND',
+                array(
+                    'required' => true,
+                    'default_value' => '',
+                    'title' => Loc::getMessage('MWS_SED_FDOC_SEND_TYPE_SEND_FIELD'),
+                )
+            ),
+            new StringField(
+                'STATUS',
+                array(
+                    'default_value' => 'WAIT_SIGN',
+                    'title' => Loc::getMessage('MWS_SED_FDOC_SEND_STATUS_FIELD'),
+                )
+            ),
+
+
+
+            new StringField(
                 'PACKAGE_URL',
                 array(
                     'required' => true,

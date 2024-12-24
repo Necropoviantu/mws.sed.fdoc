@@ -22,11 +22,10 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.getCorpId" => array(__CLASS__, "getCorpId"),
                 "mwssedfdoc.sendDealFilesFdoc" => array(__CLASS__, "sendDealFilesFdoc"),
                 "mwssedfdoc.sendWebHookFdoc" => array(__CLASS__, "sendWebHookFdoc"),
-
-
                 //TODO Запросы для фронта
                 "mwssedfdoc.getAllFiles" => array(__CLASS__, "getAllFiles"),
                 "mwssedfdoc.sendSelectedFiles" => array(__CLASS__, "sendSelectedFiles"),
+                "mwssedfdoc.declineDoc" => array(__CLASS__, "declineDoc"),
                 "mwssedfdoc.webhook" => array(__CLASS__, "webhook"),
                 "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
                 //TODO темплейты
@@ -588,6 +587,8 @@ class MwsSedFdocRest extends IRestService
             "ENTITY_ID"=>'2',
             "DEAL_ID" =>  $dealId,
             "SEND_ID" => $uidClient,
+            "TYPE_SEND"=>"SIGNED",
+
             "DOC_NAME" => implode(", ", $arrDoc),
             "PACKAGE_URL" =>$fromFdoc['url'],
             "DATE_CREATE" => new \Bitrix\Main\Type\DateTime(),
@@ -651,13 +652,83 @@ class MwsSedFdocRest extends IRestService
                     'Content-Type: application/json'
                 ),
             ));
-
             $response = curl_exec($curl);
 
             curl_close($curl);
-            $result['F_DOC'] = $response;
 
+
+            $auth = [
+                "apiKey" => $credentials['keyApi'],
+                "grant" => $credentials['base64'],
+                "grantType" => "password",
+                "app" => $corpId,
+                "corpId" => $corpId
+            ];
+
+
+            //получение токена
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($auth),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $tokenRAW = curl_exec($curl);
+
+            curl_close($curl);
+
+            $token = json_decode($tokenRAW, true)['accessToken'];
+
+
+
+
+            $curl = curl_init();
+            $build =  http_build_query([
+                'id'=>$result['SEND_ID'],
+                "idType"=>'package'
+            ]);
+
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'].'/api/v1/document?'.$build,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'Authorization: ' . $token,
+                ),
+            ));
+
+            $responseDocument = curl_exec($curl);
+
+            curl_close($curl);
+
+
+            $result['F_DOC'] = $response;
+            $parse = json_decode($response, true);
+            $docks = json_decode($responseDocument,true);
+            \Mywebstor\Fdoc\MwsSedFdocSendTable::update($result['ID'],[
+                'STATUS'=> $parse['status'],
+                'PACKAGE_URL'=> $docks['url'],
+            ]);
         }
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId]])->fetch();
             if($result["DATE_CREATE"]) {
                 $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
             }
@@ -677,6 +748,95 @@ class MwsSedFdocRest extends IRestService
         ));
 
         return $res->fetchAll();
+    }
+    public static function declineDoc($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('DocumentGenerator');
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+
+        $doc = $query['docPac'];
+
+        $credentials = [
+            'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+            'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+            'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+            'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+            'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+            'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+            'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+        ];
+
+        $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+        //авторизация
+        $auth = [
+            "apiKey" => $credentials['keyApi'],
+            "grant" => $credentials['base64'],
+            "grantType" => "password",
+            "app" => $corpId,
+            "corpId" => $corpId
+        ];
+
+
+        //получение токена
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($auth),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json'
+            ),
+        ));
+
+        $tokenRAW = curl_exec($curl);
+
+        curl_close($curl);
+
+        $token = json_decode($tokenRAW, true)['accessToken'];
+
+
+
+        $docDeclined = [
+            "packageGuid"=> $doc['SEND_ID'],
+            "declineType"=> "decline"
+        ];
+
+
+
+        //Зарос на анулирование
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] . '/api/v1/employee/decline/package',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS =>json_encode($docDeclined),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Authorization: ' . $token,
+            ),
+        ));
+
+        $response = curl_exec($curl);
+
+        curl_close($curl);
+        return $response;
+
+
     }
 
     public static function hlblockCreate($query, $nav, \CRestServer $server)
