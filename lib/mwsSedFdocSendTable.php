@@ -79,7 +79,7 @@ class MwsSedFdocSendTable extends DataManager
             new StringField(
                 'PACKAGE_URL',
                 array(
-                    'required' => true,
+
                     'default_value' => '',
                     'title' => Loc::getMessage('MWS_SED_FDOC_SEND_PACKAGE_URL_FIELD'),
                 )

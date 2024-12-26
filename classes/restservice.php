@@ -18,16 +18,21 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.setConnectOptions" => array(__CLASS__, "setConnectOptions"),
                 "mwssedfdoc.getAllUsersFdoc" => array(__CLASS__, "getAllUsersFdoc"),
                 "mwssedfdoc.deleteUsers" => array(__CLASS__, "deleteUsers"),
+                "mwssedfdoc.getClientData" => array(__CLASS__, "getClientData"),
+
                 //TODO Запросы в Fdoc;
                 "mwssedfdoc.getCorpId" => array(__CLASS__, "getCorpId"),
                 "mwssedfdoc.sendDealFilesFdoc" => array(__CLASS__, "sendDealFilesFdoc"),
                 "mwssedfdoc.sendWebHookFdoc" => array(__CLASS__, "sendWebHookFdoc"),
                 //TODO Запросы для фронта
                 "mwssedfdoc.getAllFiles" => array(__CLASS__, "getAllFiles"),
+                "mwssedfdoc.getAllDocByTemplate" => array(__CLASS__, "getAllDocByTemplate"),
                 "mwssedfdoc.sendSelectedFiles" => array(__CLASS__, "sendSelectedFiles"),
                 "mwssedfdoc.declineDoc" => array(__CLASS__, "declineDoc"),
                 "mwssedfdoc.webhook" => array(__CLASS__, "webhook"),
                 "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
+                "mwssedfdoc.checkQueryDocs" => array(__CLASS__, "checkQueryDocs"),
+                "mwssedfdoc.getDocumentClient" => array(__CLASS__, "getDocumentClient"),
                 //TODO темплейты
                 "mwssedfdoc.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
                 "mwssedfdoc.hlblock.create" => array(__CLASS__, "hlblockCreate"),
@@ -42,8 +47,43 @@ class MwsSedFdocRest extends IRestService
         );
     }
 
+    public static function getClientData($query, $nav, \CRestServer $server)
+    {
+        \Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        \Bitrix\Main\Loader::includeModule('crm');
+        $dealId= $query['dealId'];
+
+
+        $res = Bitrix\Crm\DealTable::getList([
+            'filter'=>['ID'=>$dealId],
+            'runtime'=>[
+                new \Bitrix\Main\Entity\ReferenceField(
+                    'COM_NAME',
+                    Bitrix\Crm\CompanyTable::getEntity(),
+                    ['=this.COMPANY_ID'=>'ref.ID']
+                )
+            ],
+            "select"=>[
+                'UF_CRM_1693484556784',
+                'FULL_NAME'=>'COM_NAME.TITLE'
+
+            ],
+
+        ])->fetch();
+
+        $res['UF_CRM_1693484556784'] = \Bitrix\Crm\Communication\Normalizer::normalizePhone($res['UF_CRM_1693484556784']);
+
+        if(!$res['UF_CRM_1693484556784']){
+            return 'no phone';
+        }
+        return $res;
+    }
+
     public static  function webhook($query, $nav, \CRestServer $server)
     {
+
+
+
         \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhook_log.log");
     }
     public static function getUsersBitrix($query, $nav, \CRestServer $server)
@@ -416,11 +456,12 @@ class MwsSedFdocRest extends IRestService
 
             $result = $document->getFile();
             $diskFileId = $result->getData()['emailDiskFile'];
+
             \Bitrix\Main\Loader::includeModule('disk');
             $diskFile = Bitrix\Disk\File::getById($diskFileId);
             $file = $diskFile->getFile();
             $row['FILE'] =$file;
-
+            $row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"].'/bitrix/services/main/ajax.php?action=documentgenerator.api.document.getfile&SITE_ID=s1&id='. $row['ID'];
             $arrFiles[] =$row;
         }
 
@@ -511,8 +552,8 @@ class MwsSedFdocRest extends IRestService
             'client' => [
                 'id' => $uidClient,
 
-                "phone" => "+79137080925", //забирать
-                "name" => "Тестовый Тест Тестикович",//забирать
+                "phone" => $res['UF_CRM_1693484556784'], //забирать
+                "name" => $res['FULL_NAME'],//забирать
 
 
                 "clientRole" => "Клиент"
@@ -612,7 +653,10 @@ class MwsSedFdocRest extends IRestService
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         $dealId=$query['dealId'];
 
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId]])->fetch();
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+            "DEAL_ID" => $dealId,
+            "TYPE_SEND"=>"SIGNED",
+        ]])->fetch();
 
         if($result) {
             $credentials = [
@@ -728,7 +772,140 @@ class MwsSedFdocRest extends IRestService
                 'PACKAGE_URL'=> $docks['url'],
             ]);
         }
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId]])->fetch();
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId,"TYPE_SEND"=>"SIGNED",]])->fetch();
+            if($result["DATE_CREATE"]) {
+                $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
+            }
+        return $result;
+
+    }
+    public static function checkQueryDocs($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        $dealId=$query['dealId'];
+
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+            "DEAL_ID" => $dealId,
+            "TYPE_SEND"=>"QUERY",
+        ]])->fetch();
+
+        if($result) {
+            $credentials = [
+                'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+                'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+                'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+                'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+                'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+                'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+                'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+            ];
+
+            $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+
+            $build =  http_build_query([
+                "packageId"=>$result['SEND_ID'],
+                "app"=>$corpId,
+                "corpId"=>$corpId,
+            ]);
+
+
+
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL =>  $credentials['urlApi'].'api/v1/package/by/client/status?'. $build ,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+            $response = curl_exec($curl);
+
+            curl_close($curl);
+
+
+            $auth = [
+                "apiKey" => $credentials['keyApi'],
+                "grant" => $credentials['base64'],
+                "grantType" => "password",
+                "app" => $corpId,
+                "corpId" => $corpId
+            ];
+
+
+            //получение токена
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($auth),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $tokenRAW = curl_exec($curl);
+
+            curl_close($curl);
+
+            $token = json_decode($tokenRAW, true)['accessToken'];
+
+
+
+
+            $curl = curl_init();
+            $build =  http_build_query([
+                'id'=>$result['SEND_ID'],
+                "idType"=>'package'
+            ]);
+
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'].'/api/v1/document?'.$build,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'Authorization: ' . $token,
+                ),
+            ));
+
+            $responseDocument = curl_exec($curl);
+
+            curl_close($curl);
+
+
+            $result['F_DOC'] = $response;
+            $parse = json_decode($response, true);
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($response,true),"","_SED_log.log");
+            $docks = json_decode($responseDocument,true);
+
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($responseDocument,true),"","_SED_log.log");
+            \Mywebstor\Fdoc\MwsSedFdocSendTable::update($result['ID'],[
+                'STATUS'=> $parse['status'],
+                'PACKAGE_URL'=> $docks['url'],
+            ]);
+        }
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId,  "TYPE_SEND"=>"QUERY",]])->fetch();
             if($result["DATE_CREATE"]) {
                 $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
             }
@@ -838,7 +1015,123 @@ class MwsSedFdocRest extends IRestService
 
 
     }
+    public static function getDocumentClient($query, $nav, \CRestServer $server)
+    {
 
+        Bitrix\Main\Loader::includeModule('DocumentGenerator');
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+
+        $dealId = $query['dealID'];
+        $doc = $query['queryDoc'];
+
+
+
+
+        $credentials = [
+            'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+            'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+            'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+            'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+            'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+            'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+            'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+        ];
+
+        $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+        //авторизация
+        $auth = [
+            "apiKey" => $credentials['keyApi'],
+            "grant" => $credentials['base64'],
+            "grantType" => "password",
+            "app" => $corpId,
+            "corpId" => $corpId
+        ];
+
+
+        //получение токена
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($auth),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json'
+            ),
+        ));
+
+        $tokenRAW = curl_exec($curl);
+
+        curl_close($curl);
+
+        $token = json_decode($tokenRAW, true)['accessToken'];
+        $uidClient = md5(uniqid(rand(), true));
+
+        $arrDoc =[];
+        foreach($doc['documentTypes'] as &$docType ) {
+            $arrDoc[] =$docType['name'];
+            $docType['isRequired'] = $docType['isRequired']== 1 ? true : false;
+        }
+
+        $doc['client']['id'] =  $uidClient;
+        $doc['package']['id'] =  $uidClient;
+
+        \Bitrix\Main\Diag\Debug::writeToFile(  print_r( $doc,true),"","_SED_log.log");
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] .'api/v1/package/by/client',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS =>json_encode($doc),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Authorization: ' . $token,
+            ),
+        ));
+
+        $response = curl_exec($curl);
+        \Bitrix\Main\Diag\Debug::writeToFile(  print_r($response,true),"","_SED_log.log");
+        curl_close($curl);
+        $fromFdoc = json_decode($response, true);
+        $res = \Mywebstor\Fdoc\MwsSedFdocSendTable::add([
+            "ENTITY_ID"=>'2',
+            "DEAL_ID" =>  $dealId,
+            "SEND_ID" => $uidClient,
+            "TYPE_SEND"=>"QUERY",
+            "PACKAGE_URL" =>$fromFdoc['url'],
+            "DOC_NAME" => implode(", ", $arrDoc),
+            "DATE_CREATE" => new \Bitrix\Main\Type\DateTime(),
+        ]);
+
+        if (!$res->isSuccess()){
+
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getErrorMessages(),true),"","_SED_log.log");
+        }else{
+            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getID(),true),"","_SED_log.log");
+        }
+
+
+
+        return $response;
+
+
+
+
+    }
     public static function hlblockCreate($query, $nav, \CRestServer $server)
     {
         Bitrix\Main\Loader::includeModule('highloadblock');
@@ -923,5 +1216,67 @@ class MwsSedFdocRest extends IRestService
             return 'ok';
         }
     }
+    //Чисто автоматизация
+    public static function getAllDocByTemplate($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('DocumentGenerator');
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+        $dealId = $query['dealId'];
+        //получаем сделыч
+        $container = \Bitrix\Crm\Service\Container::getInstance();
+        $factory = $container->getFactory(\CCrmOwnerType::Deal);
+        $item = $factory->getItem($dealId);
+
+        if(!$item){
+            return 'not found deal';
+        }
+
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $hlEntity = $hlblockTable::getList(array(
+            'filter'=>['UF_TEMPLATE_CATEGORY'=>$item->getCategoryId()],
+            'select'=>["*"]
+        ))->fetch();
+
+        if(!$hlEntity){
+            return 'not found template';
+        }
+        $expTemplate = explode(', ',$hlEntity['UF_TEMPLATE_TEMPLATES']);
+
+
+        $doc = \Bitrix\DocumentGenerator\Model\DocumentTable::getlist(
+            [
+                'filter' => [
+                    '=PROVIDER' => mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class),
+                    'VALUE' => $dealId,
+                    '!=TEMPLATE_ID'=>$expTemplate
+                ]
+            ])->fetchAll();
+
+        $arrFiles = [];
+
+        while ($row = $doc->fetch()) {
+            $document = \Bitrix\DocumentGenerator\Document::loadById($row['ID']);
+
+            $result = $document->getFile();
+            $diskFileId = $result->getData()['emailDiskFile'];
+
+            \Bitrix\Main\Loader::includeModule('disk');
+            $diskFile = Bitrix\Disk\File::getById($diskFileId);
+            $file = $diskFile->getFile();
+            $row['FILE'] =$file;
+            $row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"].'/bitrix/services/main/ajax.php?action=documentgenerator.api.document.getfile&SITE_ID=s1&id='. $row['ID'];
+            $arrFiles[] =$row;
+        }
+
+
+        return $arrFiles;
+
+
+
+
+    }
+
 
 }
