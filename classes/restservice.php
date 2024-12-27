@@ -1240,7 +1240,7 @@ class MwsSedFdocRest extends IRestService
         ))->fetch();
 
         if(!$hlEntity){
-            return 'not found template';
+            return [];
         }
         $expTemplate = explode(', ',$hlEntity['UF_TEMPLATE_TEMPLATES']);
 
@@ -1252,7 +1252,7 @@ class MwsSedFdocRest extends IRestService
                     'VALUE' => $dealId,
                     '!=TEMPLATE_ID'=>$expTemplate
                 ]
-            ])->fetchAll();
+            ]);
 
         $arrFiles = [];
 
