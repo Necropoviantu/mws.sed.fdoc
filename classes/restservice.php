@@ -1315,7 +1315,6 @@ class MwsSedFdocRest extends IRestService
 
 
     }
-
     public static function reloadDocuments($query, $nav, \CRestServer $server)
     {
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
