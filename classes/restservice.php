@@ -5,6 +5,10 @@ use Bitrix\Main\Loader;
 use Mywebstor\Fdoc\MwsSedFdocUsersTable;
 use Mywebstor\Fdoc\MwsSedFdocSendTable;
 use \Bitrix\Main\Type\DateTime;
+//TODO  подключение mws.deal.entity
+use Mywebstor\DealEntity\JobTable;
+use Mywebstor\DealEntity\ConsumablesTable;
+
 
 class MwsSedFdocRest extends IRestService
 {
@@ -33,6 +37,7 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
                 "mwssedfdoc.checkQueryDocs" => array(__CLASS__, "checkQueryDocs"),
                 "mwssedfdoc.getDocumentClient" => array(__CLASS__, "getDocumentClient"),
+                "mwssedfdoc.reloadDocuments" => array(__CLASS__, "reloadDocuments"),
                 //TODO темплейты
                 "mwssedfdoc.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
                 "mwssedfdoc.hlblock.create" => array(__CLASS__, "hlblockCreate"),
@@ -474,6 +479,14 @@ class MwsSedFdocRest extends IRestService
         Bitrix\Main\Loader::includeModule('crm');
         $rows  = $query['ROWS'];
         $dealId = $query['dealId'];
+        $dirPath = \Bitrix\Main\Application::getDocumentRoot() . "/mobile/custom_frames/docs/$dealId";
+        $ioDir = new \Bitrix\Main\IO\Directory($dirPath);
+        // очистка директории от предросмотра документов
+
+        if ($ioDir->isExists()) {
+            //Если существует - удалить
+            $ioDir->delete();
+        }
 
         $credentials = [
             'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
@@ -1263,11 +1276,36 @@ class MwsSedFdocRest extends IRestService
             $diskFileId = $result->getData()['emailDiskFile'];
 
             \Bitrix\Main\Loader::includeModule('disk');
+
             $diskFile = Bitrix\Disk\File::getById($diskFileId);
             $file = $diskFile->getFile();
+            $arr =	explode('.',$file['ORIGINAL_NAME']);
+            $ext = end($arr);
+
+
+
             $row['FILE'] =$file;
-            $row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"].'/bitrix/services/main/ajax.php?action=documentgenerator.api.document.getfile&SITE_ID=s1&id='. $row['ID'];
+            $dirPath = \Bitrix\Main\Application::getDocumentRoot() . "/mobile/custom_frames/docs/$dealId";
+
+            $ioDir = new \Bitrix\Main\IO\Directory($dirPath);
+            if (!$ioDir->isExists()) {
+                //Если не существует - создать
+                $ioDir->create();
+            }
+
+
+            file_put_contents($_SERVER['DOCUMENT_ROOT'] ."/mobile/custom_frames/docs/$dealId/".$dealId.'_'.$file['ORIGINAL_NAME'], file_get_contents('https://' . $_SERVER['SERVER_NAME'] . $file['SRC']) );
+
+            //$row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"].'/bitrix/services/main/ajax.php?action=documentgenerator.api.document.getfile&SITE_ID=s1&id='. $row['ID'];
+            $row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"]."/mobile/custom_frames/docs/$dealId/".$dealId.'_'.$file['ORIGINAL_NAME'];
             $arrFiles[] =$row;
+
+
+//            file_put_contents($_SERVER['DOCUMENT_ROOT'] ."/mobile/local_Frames/docs/$dealId/".$file['ORIGINAL_NAME'], file_get_contents('https://' . $_SERVER['SERVER_NAME'] . $file['SRC']) );
+//
+//            //$row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"].'/bitrix/services/main/ajax.php?action=documentgenerator.api.document.getfile&SITE_ID=s1&id='. $row['ID'];
+//            $row['DOWNLOAD'] = 'https://'.$_SERVER["SERVER_NAME"]."/mobile/local_Frames/docs//$dealId".$file['ORIGINAL_NAME'];
+//            $arrFiles[] =$row;
         }
 
 
@@ -1278,5 +1316,153 @@ class MwsSedFdocRest extends IRestService
 
     }
 
+    public static function reloadDocuments($query, $nav, \CRestServer $server)
+    {
+        Bitrix\Main\Loader::includeModule('DocumentGenerator');
+        Bitrix\Main\Loader::includeModule('mws.deal.entity');
+
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+        $dealId = $query['dealId'];
+        //получаем сделыч
+        $container = \Bitrix\Crm\Service\Container::getInstance();
+        $factory = $container->getFactory(\CCrmOwnerType::Deal);
+        $item = $factory->getItem($dealId);
+
+        if(!$item){
+            return 'not found deal';
+        }
+
+        $LKtoUpdate = COption::GetOptionString("mws.sed.fdoc", "mws_sed_fdoc_template_document_sed", 0);
+
+        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+        $hlEntity = $hlblockTable::getList(array(
+            'filter'=>['UF_TEMPLATE_CATEGORY'=>$item->getCategoryId()],
+            'select'=>["*"]
+        ))->fetch();
+
+        if(!$hlEntity){
+            return [];
+        }
+        //шаблоны исключения
+        $expTemplate = explode(', ',$hlEntity['UF_TEMPLATE_TEMPLATES']);
+
+        //Забираем все шаблоны
+        //чтобы выташить нужные шаблоны
+
+        $res = \Bitrix\DocumentGenerator\Model\TemplateTable::getList(array(
+            "filter"=>[
+                "=PROVIDER.PROVIDER" => mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class)."_category_" . $item->getCategoryId(),
+            ],
+
+            "select"=>['ID','NAME']
+        ));
+        $tempNeed = [];
+      while($templ = $res->fetch()){
+         if(!in_array($templ['ID'],$expTemplate)){
+             $tempNeed[] = $templ['ID'];
+         }
+      }
+        // получаем пакет докумнтов на переформатирование
+        $docs= \Bitrix\DocumentGenerator\Model\DocumentTable::getList(array(
+            'filter' => array(
+                '=PROVIDER'=> mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class),
+                "TEMPLATE_ID"=>  $tempNeed,
+                "VALUE"=>$dealId,
+            )
+        ))->fetchAll();
+        if($docs){
+            foreach ($docs as $doc){
+                $del =  \Bitrix\DocumentGenerator\Model\DocumentTable::delete($doc['ID']);
+            }
+        }
+        foreach($tempNeed as $templateID){
+            //TODO для использования на других порталах вырезать этот код
+            if($templateID == 75){
+                $data =[];
+                $template = \Bitrix\DocumentGenerator\Template::loadById($templateID);
+                $template->setSourceType(\Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class);
+                $document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $dealId);
+
+                $jobs  = JobTable::getList([
+                    'filter'=>[
+                        'DEAL_ID'=> $dealId
+                    ],
+                    'select'=>["PRODUCT_NAME","MEASURE","QUANTITY","PRICE",],
+
+                ]);
+                $data['jobsSum'] = 0;
+                while ($row = $jobs->fetch()) {
+                    $row['SUM'] = $row['QUANTITY'] * $row['PRICE'];
+                    $data['jobsSum'] =  $data['jobsSum'] +$row['SUM'];
+                    $data['jobs'][] = $row;
+
+                }
+
+//        $data['jobs'] = $jobs->fetchAll();
+
+                $mats = ConsumablesTable::getList([
+                    'filter'=>[
+                        'DEAL_ID'=>$dealId
+                    ],
+                    'select'=>["PRODUCT_NAME","MEASURE",'QUANTITY_EXP',"QUANTITY_SALE","PRICE",],
+                ]);
+
+                while ($row =  $mats->fetch()) {
+                    //$row['jobSum'] = $row['QUANTITY'] * $row['PRICE'];
+                    $data['mats'][] = $row;
+                }
+
+
+                //$data['mats'] = $mats->fetchAll();
+
+                $fields = [
+
+                    'mats' => [
+                        'PROVIDER' => \Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider::class,
+                        'OPTIONS' => [
+                            'ITEM_NAME' => 'Item',
+                            'ITEM_PROVIDER' => \Bitrix\DocumentGenerator\DataProvider\HashDataProvider::class,
+                        ],
+                    ],
+                    'matIdx' => ['VALUE' => 'mats.INDEX'],
+                    'matName' => ['VALUE' => 'mats.Item.PRODUCT_NAME'],
+                    'matQuantity' => ['VALUE' => 'mats.Item.QUANTITY_EXP'],
+                    //'measure' => ['VALUE' => 'goods.Item.ROW_MEASURE_NAME'],
+
+                    'jobs' => [
+                        'PROVIDER' => \Bitrix\DocumentGenerator\DataProvider\ArrayDataProvider::class,
+                        'OPTIONS' => [
+                            'ITEM_NAME' => 'Item',
+                            'ITEM_PROVIDER' => \Bitrix\DocumentGenerator\DataProvider\HashDataProvider::class,
+                        ],
+                    ],
+                    'jobIdx' => ['VALUE' => 'jobs.INDEX'],
+                    'jobName' => ['VALUE' => 'jobs.Item.PRODUCT_NAME'],
+                    'jobPrice' => ['VALUE' => 'jobs.Item.PRICE'],
+                    'jobQuantity' => ['VALUE' => 'jobs.Item.QUANTITY'],
+                    'jobSum' => ['VALUE' => 'jobs.Item.SUM'],
+                ];
+
+                $result = $document->setFields($fields)->setValues($data)->getFile();
+
+                $docId = $result->getData()['id'];
+
+
+
+
+
+            }else{
+                $template = \Bitrix\DocumentGenerator\Template::loadById($templateID);
+                $template->setSourceType(\Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class);
+                $document = \Bitrix\DocumentGenerator\Document::createByTemplate($template, $dealId);
+
+                $result = $document->getFile();
+
+                $docId = $result->getData()['id'];
+            }
+        }
+        return 'ok';
+    }
 
 }
