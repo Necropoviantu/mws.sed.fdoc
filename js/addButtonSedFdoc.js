@@ -4,7 +4,9 @@ BX.ready(function () {
         const ID = link.split("/")[4]
         const main = document.getElementById('toolbar_deal_details_'+ID);
         var openSlider =  async function () {
-            BX.SidePanel.Instance.open("/local/modules/mws.sed.fdoc/UI/?ID="+ID);
+            BX.SidePanel.Instance.open("/local/modules/mws.sed.fdoc/UI/?ID="+ID,{allowChangeHistory:false});
+            // IFRAME: Y
+            // IFRAME_TYPE: SIDE_SLIDER
         }
         if(main){
             main.prepend(
