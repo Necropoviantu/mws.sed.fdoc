@@ -67,7 +67,7 @@ class MwsSedFdocRest extends IRestService
                 )
             ],
             "select"=>[
-                'UF_CRM_1693484556784',
+                'UF_CRM_1693484556784'=>"UF_CRM_1737614775210",
                 'FULL_NAME'=>'COM_NAME.TITLE'
 
             ],
@@ -490,13 +490,13 @@ class MwsSedFdocRest extends IRestService
 
         $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
 
-        $send = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
-            "DEAL_ID" => $dealId,
-            "TYPE_SEND"=>"SIGNED",
-        ]])->fetch();
-        if($send){
-            \Mywebstor\Fdoc\MwsSedFdocSendTable::delete($send['ID']);
-        }
+//        $send = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+//            "DEAL_ID" => $dealId,
+//            "TYPE_SEND"=>"SIGNED",
+//        ]])->fetch();
+//        if($send){
+//            \Mywebstor\Fdoc\MwsSedFdocSendTable::delete($send['ID']);
+//        }
 
 
 
@@ -534,7 +534,7 @@ class MwsSedFdocRest extends IRestService
             $arrDoc[]=$file['ORIGINAL_NAME'];
         }
 
-        $uidClient = md5(uniqid(rand(), true));
+
 
         $res = Bitrix\Crm\DealTable::getList([
             'filter'=>['ID'=>$dealId],
@@ -546,12 +546,34 @@ class MwsSedFdocRest extends IRestService
                 )
             ],
             "select"=>[
-                'UF_CRM_1693484556784',
-                'FULL_NAME'=>'COM_NAME.TITLE'
-
+                'UF_CRM_1693484556784'=>"UF_CRM_1737614775210",
+                'FULL_NAME'=>'COM_NAME.TITLE',
+                'COMPANY_ID'
             ],
 
         ])->fetch();
+        $container = \Bitrix\Crm\Service\Container::getInstance();
+        $factory = $container->getFactory(\CCrmOwnerType::Company);
+        $item = $factory->getItem( $res['COMPANY_ID']);
+//        UF_CRM_1737616044868
+        if(!$item->get('UF_CRM_1737616044868')){
+            $uidClient = md5(uniqid(rand(), true));
+            $item->set('UF_CRM_1737616044868',$uidClient);
+            $operation = $factory->getUpdateOperation($item);
+            $result = $operation
+                ->disableCheckFields() //Не проверять обязательные поля
+                ->disableCheckAccess() //Не проверять права доступа
+                ->disableAfterSaveActions() //Не запускать события OnAfterCrmLeadAdd
+                ->enableAutomation() //Запускать роботов (по идее должны по умолчанию запускаться)
+                ->enableBizProc() //Запускать бизнес-процессы (по идее должны по умолчанию запускаться)
+                ->launch(); //Запуск
+
+        }else{
+            $uidClient =$item->get('UF_CRM_1737616044868');
+        }
+
+
+
 
         $res['UF_CRM_1693484556784'] = \Bitrix\Crm\Communication\Normalizer::normalizePhone($res['UF_CRM_1693484556784']);
 
@@ -559,7 +581,7 @@ class MwsSedFdocRest extends IRestService
             return 'no phone';
         }
 
-
+        $uidpack = md5(uniqid(rand(), true));
         $docPack = [
             'documents' => $arrFiles,
             'client' => [
@@ -572,7 +594,7 @@ class MwsSedFdocRest extends IRestService
                 "clientRole" => "Клиент"
             ],
             'package' => [
-                'id' => $uidClient,
+                'id' =>  'pack_'.$uidpack,
                 "name" => "Документы по заявке" . $dealId,
                 "operatorAutoSign" => true,
             ],
@@ -610,7 +632,7 @@ class MwsSedFdocRest extends IRestService
         curl_close($curl);
 
         $token = json_decode($tokenRAW, true)['accessToken'];
-
+        \Bitrix\Main\Diag\Debug::writeToFile(  print_r($docPack,true),"","_SED_log.log");
 
         $curl = curl_init();
 
@@ -640,7 +662,8 @@ class MwsSedFdocRest extends IRestService
         $res = \Mywebstor\Fdoc\MwsSedFdocSendTable::add([
             "ENTITY_ID"=>'2',
             "DEAL_ID" =>  $dealId,
-            "SEND_ID" => $uidClient,
+            "COMPANY_ID"=>$res['COMPANY_ID'],
+            "SEND_ID" => 'pack_'.$uidpack,
             "TYPE_SEND"=>"SIGNED",
 
             "DOC_NAME" => implode(", ", $arrDoc),
@@ -666,7 +689,10 @@ class MwsSedFdocRest extends IRestService
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         $dealId=$query['dealId'];
 
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
+            "order"=>['ID' => 'DESC'],
+
+            "filter"=>[
             "DEAL_ID" => $dealId,
             "TYPE_SEND"=>"SIGNED",
         ]])->fetch();
@@ -842,7 +868,6 @@ class MwsSedFdocRest extends IRestService
             $response = curl_exec($curl);
 
             curl_close($curl);
-
 
             $auth = [
                 "apiKey" => $credentials['keyApi'],
@@ -1230,6 +1255,9 @@ class MwsSedFdocRest extends IRestService
         }
     }
     //Чисто автоматизация
+
+
+
     public static function getAllDocByTemplate($query, $nav, \CRestServer $server)
     {
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
