@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS mws_sed_fdoc_send (
         `ENTITY_ID` INT  NOT NULL,
         `DEAL_ID` INT  NOT NULL,
         `COMPANY_ID` INT NOT NULL,
+        `USER_ID` INT,
         `SEND_ID` VARCHAR(255) NOT NULL,
         `PACKAGE_URL` VARCHAR(255),
         `TYPE_SEND` VARCHAR(255),
@@ -16,4 +17,5 @@ CREATE TABLE IF NOT EXISTS mws_sed_fdoc_send (
         `STATUS` VARCHAR(255),
         `DATE_CREATE` DATETIME,
         PRIMARY KEY (`ID`)
+    
 );

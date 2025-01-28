@@ -49,6 +49,13 @@ class MwsSedFdocSendTable extends DataManager
                     'title' => Loc::getMessage('MWS_SED_FDOC_SEND_COMPANY_ID_FIELD'),
                 )
             ),
+            new IntegerField('USER_ID',
+                array(
+                   // 'required' => true,
+                    'default_value' => '',
+                    'title' => Loc::getMessage('MWS_SED_FDOC_SEND_USER_ID_FIELD'),
+                )
+            ),
             new IntegerField('SEND_ID',
                 array(
                     'required' => true,

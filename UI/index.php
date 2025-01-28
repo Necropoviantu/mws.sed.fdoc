@@ -7,9 +7,8 @@ $APPLICATION->ShowHead();
  ?>
      <!-- <script type="module" crossorigin src="/local/modules/mws.sed.fdoc/UI/assets/index-C6eeFkGU.js"></script>
     <link rel="stylesheet" crossorigin href="/local/modules/mws.sed.fdoc/UI/assets/index-QZ0K-uSD.css"> -->
-
-    <script type="module" crossorigin src="/local/modules/mws.sed.fdoc/UI/assets/index-BHYM-7ir.js"></script>
-    <link rel="stylesheet" crossorigin href="/local/modules/mws.sed.fdoc/UI/assets/index-QZ0K-uSD.css">
+    <script type="module" crossorigin src="/local/modules/mws.sed.fdoc/UI/assets/index-C3yd3sx5.js"></script>
+    <link rel="stylesheet" crossorigin href="/local/modules/mws.sed.fdoc/UI/assets/index-BWSzF9b7.css">
 <div id='app'></div>
 
 

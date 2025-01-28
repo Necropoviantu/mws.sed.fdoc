@@ -36,6 +36,7 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.checkQueryDocs" => array(__CLASS__, "checkQueryDocs"),
                 "mwssedfdoc.getDocumentClient" => array(__CLASS__, "getDocumentClient"),
                 "mwssedfdoc.reloadDocuments" => array(__CLASS__, "reloadDocuments"),
+                "mwssedfdoc.getDocList" => array(__CLASS__, "getDocList"),
                 //TODO темплейты
                 "mwssedfdoc.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
                 "mwssedfdoc.hlblock.create" => array(__CLASS__, "hlblockCreate"),
@@ -67,7 +68,7 @@ class MwsSedFdocRest extends IRestService
                 )
             ],
             "select"=>[
-                'UF_CRM_1693484556784'=>"UF_CRM_1737614775210",
+                'UF_CRM_1693484556784',
                 'FULL_NAME'=>'COM_NAME.TITLE'
 
             ],
@@ -81,7 +82,39 @@ class MwsSedFdocRest extends IRestService
         }
         return $res;
     }
+    public static function getDocList($query, $nav, \CRestServer $server)
+    {
+        \Bitrix\Main\Loader::includeModule("iblock");
+        //dev
+//        $res = \Bitrix\Iblock\Iblock::wakeUp(88)->getEntityDataClass()::getList(array(
+//            'filter' => [
+//                'IBLOCK_ID' => 88,
+//
+//            ],
+//            'select' => [
+//                "ID",
+//                "NAME",
+//                "FDOC_COMMENT"=>"KOMMENTARIY_DLYA_FDOC.VALUE"
+//
+//            ]
+//        ));
+     //prod
+        $res = \Bitrix\Iblock\Iblock::wakeUp(133)->getEntityDataClass()::getList(array(
+            'filter' => [
+                'IBLOCK_ID' => 133,
 
+            ],
+            'select' => [
+                "ID",
+                "NAME",
+                "FDOC_COMMENT"=>"KOMMENTARIY.VALUE"
+
+            ]
+        ));
+         return $res->fetchAll();
+
+
+    }
     public static  function webhook($query, $nav, \CRestServer $server)
     {
 
@@ -472,6 +505,7 @@ class MwsSedFdocRest extends IRestService
     }
     public static function sendSelectedFiles($query, $nav, \CRestServer $server)
     {
+        global $USER;
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         Bitrix\Main\Loader::includeModule('crm');
@@ -524,9 +558,16 @@ class MwsSedFdocRest extends IRestService
 
             $uid = md5(uniqid(rand(), true));
 
+            $fname = mb_ereg_replace('[^A-Z,^a-z,^А-Я,^а-я,^ ,^.]', '', $file['ORIGINAL_NAME']);
+
+            $fArr = explode(" ", $fname);
+
+            $fras = trim($fArr[(count($fArr)-1)]);
+            array_pop($fArr);
+
             $arrFiles[] = [
                 'id' => $file['ID'] . '_' .$uid,
-                'name' => $file['ORIGINAL_NAME'],
+                'name' => implode(" ",$fArr).$fras,//$file['ORIGINAL_NAME'],
                 'file' => base64_encode($base),
                 'unsignExpiredDate' => $dateTime->format("Y-m-d\TH:i:s\Z"),
             ];
@@ -546,19 +587,22 @@ class MwsSedFdocRest extends IRestService
                 )
             ],
             "select"=>[
-                'UF_CRM_1693484556784'=>"UF_CRM_1737614775210",
+                'UF_CRM_1693484556784',
                 'FULL_NAME'=>'COM_NAME.TITLE',
                 'COMPANY_ID'
             ],
 
         ])->fetch();
+
+
+
         $container = \Bitrix\Crm\Service\Container::getInstance();
         $factory = $container->getFactory(\CCrmOwnerType::Company);
         $item = $factory->getItem( $res['COMPANY_ID']);
-//        UF_CRM_1737616044868
-        if(!$item->get('UF_CRM_1737616044868')){
+//        UF_CRM_1737619304 F.doc (client_id)
+        if(!$item->get('UF_CRM_1737619304')){
             $uidClient = md5(uniqid(rand(), true));
-            $item->set('UF_CRM_1737616044868',$uidClient);
+            $item->set('UF_CRM_1737619304',$uidClient);
             $operation = $factory->getUpdateOperation($item);
             $result = $operation
                 ->disableCheckFields() //Не проверять обязательные поля
@@ -569,7 +613,7 @@ class MwsSedFdocRest extends IRestService
                 ->launch(); //Запуск
 
         }else{
-            $uidClient =$item->get('UF_CRM_1737616044868');
+            $uidClient =$item->get('UF_CRM_1737619304');
         }
 
 
@@ -595,7 +639,7 @@ class MwsSedFdocRest extends IRestService
             ],
             'package' => [
                 'id' =>  'pack_'.$uidpack,
-                "name" => "Документы по заявке" . $dealId,
+                "name" => "Документы по заявке  $dealId",
                 "operatorAutoSign" => true,
             ],
         ];
@@ -665,7 +709,7 @@ class MwsSedFdocRest extends IRestService
             "COMPANY_ID"=>$res['COMPANY_ID'],
             "SEND_ID" => 'pack_'.$uidpack,
             "TYPE_SEND"=>"SIGNED",
-
+            "USER_ID"=>$USER->getId(),
             "DOC_NAME" => implode(", ", $arrDoc),
             "PACKAGE_URL" =>$fromFdoc['url'],
             "DATE_CREATE" => new \Bitrix\Main\Type\DateTime(),
@@ -681,8 +725,6 @@ class MwsSedFdocRest extends IRestService
 
         return $response;
 
-
-
     }
     public static function checkSendDocs($query, $nav, \CRestServer $server)
     {
@@ -691,9 +733,8 @@ class MwsSedFdocRest extends IRestService
 
         $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
             "order"=>['ID' => 'DESC'],
-
             "filter"=>[
-            "DEAL_ID" => $dealId,
+                        "DEAL_ID" => $dealId,
             "TYPE_SEND"=>"SIGNED",
         ]])->fetch();
 
@@ -811,7 +852,7 @@ class MwsSedFdocRest extends IRestService
                 'PACKAGE_URL'=> $docks['url'],
             ]);
         }
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId,"TYPE_SEND"=>"SIGNED",]])->fetch();
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["order"=>['ID' => 'DESC'],"filter"=>["DEAL_ID" => $dealId,"TYPE_SEND"=>"SIGNED",]])->fetch();
             if($result["DATE_CREATE"]) {
                 $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
             }
@@ -823,7 +864,9 @@ class MwsSedFdocRest extends IRestService
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         $dealId=$query['dealId'];
 
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
+            "order"=>['ID' => 'DESC'],
+            "filter"=>[
             "DEAL_ID" => $dealId,
             "TYPE_SEND"=>"QUERY",
         ]])->fetch();
@@ -868,6 +911,7 @@ class MwsSedFdocRest extends IRestService
             $response = curl_exec($curl);
 
             curl_close($curl);
+
 
             $auth = [
                 "apiKey" => $credentials['keyApi'],
@@ -943,7 +987,7 @@ class MwsSedFdocRest extends IRestService
                 'PACKAGE_URL'=> $docks['url'],
             ]);
         }
-        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>["DEAL_ID" => $dealId,  "TYPE_SEND"=>"QUERY",]])->fetch();
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["order"=>['ID' => 'DESC'],"filter"=>["DEAL_ID" => $dealId,  "TYPE_SEND"=>"QUERY",]])->fetch();
             if($result["DATE_CREATE"]) {
                 $result["DATE_CREATE"] = $result['DATE_CREATE']->format('d.m.Y');
             }
@@ -1055,7 +1099,7 @@ class MwsSedFdocRest extends IRestService
     }
     public static function getDocumentClient($query, $nav, \CRestServer $server)
     {
-
+        global $USER;
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         Bitrix\Main\Loader::includeModule('crm');
@@ -1111,16 +1155,54 @@ class MwsSedFdocRest extends IRestService
         curl_close($curl);
 
         $token = json_decode($tokenRAW, true)['accessToken'];
-        $uidClient = md5(uniqid(rand(), true));
+       
+
+
+
+        $res = Bitrix\Crm\DealTable::getList([
+            'filter'=>['ID'=>$dealId],
+            'runtime'=>[
+                new \Bitrix\Main\Entity\ReferenceField(
+                    'COM_NAME',
+                    Bitrix\Crm\CompanyTable::getEntity(),
+                    ['=this.COMPANY_ID'=>'ref.ID']
+                )
+            ],
+            "select"=>[
+                'UF_CRM_1693484556784',
+                'FULL_NAME'=>'COM_NAME.TITLE',
+                'COMPANY_ID'
+            ],
+
+        ])->fetch();
+        $container = \Bitrix\Crm\Service\Container::getInstance();
+        $factory = $container->getFactory(\CCrmOwnerType::Company);
+        $item = $factory->getItem($res['COMPANY_ID']);
+//        UF_CRM_1737619304 F.doc (client_id)
+        if(!$item->get('UF_CRM_1737619304')){
+            $uidClient = md5(uniqid(rand(), true));
+            $item->set('UF_CRM_1737619304',$uidClient);
+            $operation = $factory->getUpdateOperation($item);
+            $result = $operation
+                ->disableCheckFields() //Не проверять обязательные поля
+                ->disableCheckAccess() //Не проверять права доступа
+                ->disableAfterSaveActions() //Не запускать события OnAfterCrmLeadAdd
+                ->enableAutomation() //Запускать роботов (по идее должны по умолчанию запускаться)
+                ->enableBizProc() //Запускать бизнес-процессы (по идее должны по умолчанию запускаться)
+                ->launch(); //Запуск
+
+        }else{
+            $uidClient =$item->get('UF_CRM_1737619304');
+        }
 
         $arrDoc =[];
         foreach($doc['documentTypes'] as &$docType ) {
             $arrDoc[] =$docType['name'];
             $docType['isRequired'] = $docType['isRequired']== 1 ? true : false;
         }
-
+        $uidPack = md5(uniqid(rand(), true));
         $doc['client']['id'] =  $uidClient;
-        $doc['package']['id'] =  $uidClient;
+        $doc['package']['id'] = 'pac_'.$uidPack;
 
         \Bitrix\Main\Diag\Debug::writeToFile(  print_r( $doc,true),"","_SED_log.log");
         $curl = curl_init();
@@ -1143,19 +1225,23 @@ class MwsSedFdocRest extends IRestService
 
         $response = curl_exec($curl);
         \Bitrix\Main\Diag\Debug::writeToFile(  print_r($response,true),"","_SED_log.log");
+
         curl_close($curl);
         $fromFdoc = json_decode($response, true);
-        $res = \Mywebstor\Fdoc\MwsSedFdocSendTable::add([
+
+        $resl = \Mywebstor\Fdoc\MwsSedFdocSendTable::add([
             "ENTITY_ID"=>'2',
             "DEAL_ID" =>  $dealId,
-            "SEND_ID" => $uidClient,
+            "SEND_ID" => 'pac_'.$uidPack,
+            "COMPANY_ID"=>$res['COMPANY_ID'],
+            "USER_ID"=>$USER->getId(),
             "TYPE_SEND"=>"QUERY",
             "PACKAGE_URL" =>$fromFdoc['url'],
             "DOC_NAME" => implode(", ", $arrDoc),
             "DATE_CREATE" => new \Bitrix\Main\Type\DateTime(),
         ]);
 
-        if (!$res->isSuccess()){
+        if (!$resl->isSuccess()){
 
             \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getErrorMessages(),true),"","_SED_log.log");
         }else{
@@ -1255,9 +1341,6 @@ class MwsSedFdocRest extends IRestService
         }
     }
     //Чисто автоматизация
-
-
-
     public static function getAllDocByTemplate($query, $nav, \CRestServer $server)
     {
         Bitrix\Main\Loader::includeModule('DocumentGenerator');
