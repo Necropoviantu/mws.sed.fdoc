@@ -12,6 +12,7 @@ class MwsSedFdocRest extends IRestService
 {
     public static function OnRestServiceBuildDescription()
     {
+ 
         return array(
             "mwssedfdoc" => array(
                 "mwssedfdoc.getUsersBitrix" => array(__CLASS__, "getUsersBitrix"),
@@ -25,13 +26,15 @@ class MwsSedFdocRest extends IRestService
                 //TODO Запросы в Fdoc;
                 "mwssedfdoc.getCorpId" => array(__CLASS__, "getCorpId"),
                 "mwssedfdoc.sendDealFilesFdoc" => array(__CLASS__, "sendDealFilesFdoc"),
-                "mwssedfdoc.sendWebHookFdoc" => array(__CLASS__, "sendWebHookFdoc"),
+                "mwssedfdoc.sendWebHookFdocSigned" => array(__CLASS__, "sendWebHookFdocSigned"),
+                "mwssedfdoc.sendWebHookFdocQuery" => array(__CLASS__, "sendWebHookFdocQuery"),
                 //TODO Запросы для фронта
                 "mwssedfdoc.getAllFiles" => array(__CLASS__, "getAllFiles"),
                 "mwssedfdoc.getAllDocByTemplate" => array(__CLASS__, "getAllDocByTemplate"),
                 "mwssedfdoc.sendSelectedFiles" => array(__CLASS__, "sendSelectedFiles"),
                 "mwssedfdoc.declineDoc" => array(__CLASS__, "declineDoc"),
-                "mwssedfdoc.webhook" => array(__CLASS__, "webhook"),
+                "mwssedfdoc.webhookSigned" => array(__CLASS__, "webhookSigned"),
+                "mwssedfdoc.webhookQuery" => array(__CLASS__, "webhookQuery"),
                 "mwssedfdoc.checkSendDocs" => array(__CLASS__, "checkSendDocs"),
                 "mwssedfdoc.checkQueryDocs" => array(__CLASS__, "checkQueryDocs"),
                 "mwssedfdoc.getDocumentClient" => array(__CLASS__, "getDocumentClient"),
@@ -115,13 +118,58 @@ class MwsSedFdocRest extends IRestService
 
 
     }
-    public static  function webhook($query, $nav, \CRestServer $server)
+//    public static  function webhook($query, $nav, \CRestServer $server)
+//    {
+//        \Bitrix\Main\Loader::includeModule('crm');
+//        \Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+//
+//        $arr =  $query;
+//        $container = \Bitrix\Crm\Service\Container::getInstance();
+//        $factory = $container->getFactory(\CCrmOwnerType::Company);
+//
+//            if(in_array( 'employeeId',array_keys($arr))){
+//                //логика на отправленные документы
+//                $items = $factory->getItems(['filter'=>['UF_CRM_1737619304'=>$arr['']]]);
+//                foreach($items as $item){
+//
+//                    print_r($item->getId());
+//
+//                }
+//            }else{
+//                //логика на запрос документов
+//                $items = $factory->getItems(['filter'=>['UF_CRM_1737619304'=>'f78d8991cd3712c197edcbdf5680525c']]);
+//                foreach($items as $item){
+//
+//                    print_r($item->getId());
+//
+//                }
+//
+//
+//
+//            }
+//
+//
+//
+//
+//
+//        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhook_log.log");
+//    }
+    public static  function webhookSigned($query, $nav, \CRestServer $server)
     {
 
 
 
-        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhook_log.log");
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhookSigned_log.log");
     }
+    public static  function webhookQuery($query, $nav, \CRestServer $server)
+    {
+
+
+
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhookQuery_log.log");
+    }
+
+
     public static function getUsersBitrix($query, $nav, \CRestServer $server)
     {
         $result = \Bitrix\Main\UserTable::getList([
@@ -420,7 +468,7 @@ class MwsSedFdocRest extends IRestService
 
 
     }
-    public static function sendWebHookFdoc($query, $nav, \CRestServer $server)
+    public static function sendWebHookFdocSigned($query, $nav, \CRestServer $server)
     {
 
         $credentials = [
@@ -441,12 +489,12 @@ class MwsSedFdocRest extends IRestService
         $data = [
             "apiKey"=> $credentials['keyApi'],
             "events"=> [[
-                         "url"=> $query['webHookUrl'],
-                         "code"=> "SetStatus",
-                         ]
-                        ],
+                "url"=> $query['webHookUrl'],
+                "code"=> "SetStatus",
+            ]
+            ],
             "channelTypeCode"=> "API"
-                 ];
+        ];
         curl_setopt_array($curl, array(
             CURLOPT_URL => $credentials['urlApi'].'api/v1/corp/webhooks',
             CURLOPT_RETURNTRANSFER => true,
@@ -466,7 +514,57 @@ class MwsSedFdocRest extends IRestService
         $response = curl_exec($curl);
 
         curl_close($curl);
-       return $response;
+        return $response;
+
+
+    }
+    public static function sendWebHookFdocQuery($query, $nav, \CRestServer $server)
+    {
+
+        $credentials = [
+            'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+            'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+            'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+            'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+            'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+            'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+            'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+        ];
+
+        $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+        $curl = curl_init();
+
+
+        $data = [
+            "apiKey"=> $credentials['keyApi'],
+            "events"=> [[
+                "url"=> $query['webHookUrl'],
+                "code"=> "SetStatusPackageByClient",
+            ]
+            ],
+            "channelTypeCode"=> "API"
+        ];
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'].'api/v1/corp/webhooks',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_POSTFIELDS =>json_encode($data),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Authorization: Basic '. base64_encode($credentials['loginApi'].":".$credentials['passwordApi']),
+            ),
+        ));
+
+        $response = curl_exec($curl);
+
+        curl_close($curl);
+        return $response;
 
 
     }
