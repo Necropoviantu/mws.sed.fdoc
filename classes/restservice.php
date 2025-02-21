@@ -12,7 +12,6 @@ class MwsSedFdocRest extends IRestService
 {
     public static function OnRestServiceBuildDescription()
     {
- 
         return array(
             "mwssedfdoc" => array(
                 "mwssedfdoc.getUsersBitrix" => array(__CLASS__, "getUsersBitrix"),
@@ -47,13 +46,223 @@ class MwsSedFdocRest extends IRestService
                 "mwssedfdoc.hlblock.getList" => array(__CLASS__, "hlblockgetList"),
                 "mwssedfdoc.hlblock.delete" => array(__CLASS__, "hlblockdelete"),
 
-
-
-
+                "mwssedfdoc.getAllSend" => array(__CLASS__, "getAllSend"),
+                "mwssedfdoc.getAllQuery" => array(__CLASS__, "getAllQuery"),
+                "mwssedfdoc.recognize" => array(__CLASS__, "recognize"),
+                "mwssedfdoc.downloadDocs" => array(__CLASS__, "downloadDocs"),
             ),
         );
     }
 
+    public static function getAllQuery($query, $nav, \CRestServer $server){
+
+        \Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+         $dealId=$query['dealID'];
+ 
+         $res = MwsSedFdocSendTable::getList(["filter"=>[
+             "DEAL_ID" => $dealId,
+             "TYPE_SEND"=>"QUERY",
+         ]]);
+         $result = [];
+         $credentials = [
+             'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+             'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+             'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+             'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+             'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+             'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+             'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+         ];
+ 
+         $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+ 
+ 
+         $auth = [
+             "apiKey" => $credentials['keyApi'],
+             "grant" => $credentials['base64'],
+             "grantType" => "password",
+             "app" => $corpId,
+             "corpId" => $corpId
+         ];
+ 
+ 
+         //получение токена
+         $curl = curl_init();
+ 
+         curl_setopt_array($curl, array(
+             CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+             CURLOPT_RETURNTRANSFER => true,
+             CURLOPT_ENCODING => '',
+             CURLOPT_MAXREDIRS => 10,
+             CURLOPT_TIMEOUT => 0,
+             CURLOPT_FOLLOWLOCATION => true,
+             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+             CURLOPT_CUSTOMREQUEST => 'POST',
+             CURLOPT_POSTFIELDS => json_encode($auth),
+             CURLOPT_HTTPHEADER => array(
+                 'Content-Type: application/json'
+             ),
+         ));
+ 
+         $tokenRAW = curl_exec($curl);
+ 
+         curl_close($curl);
+ 
+         $token = json_decode($tokenRAW, true)['accessToken'];
+ 
+ 
+ 
+ 
+        
+ 
+ 
+         while($row=$res->fetch()){
+ 
+             $curl = curl_init();
+             $build =  http_build_query([
+                 'id'=>$row["SEND_ID"],
+                 "idType"=>'package'
+             ]);
+     
+     
+             curl_setopt_array($curl, array(
+                 CURLOPT_URL => $credentials['urlApi'].'/api/v1/document?'.$build,
+                 CURLOPT_RETURNTRANSFER => true,
+                 CURLOPT_ENCODING => '',
+                 CURLOPT_MAXREDIRS => 10,
+                 CURLOPT_TIMEOUT => 0,
+                 CURLOPT_FOLLOWLOCATION => true,
+                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                 CURLOPT_CUSTOMREQUEST => 'GET',
+                 CURLOPT_HTTPHEADER => array(
+                     'Content-Type: application/json',
+                     'Authorization: ' . $token,
+                 ),
+             ));
+     
+             $responseDocument = curl_exec($curl);
+     
+             curl_close($curl);
+             $docks = json_decode($responseDocument,true);
+             $result[] = [
+             "ID"=> $row["ID"],
+         "ENTITY_ID"=> $row["ENTITY_ID"],
+         "DEAL_ID"=> $row["DEAL_ID"],
+         "SEND_ID"=> $row["SEND_ID"],
+         "DOC_NAME"=> $row["DOC_NAME"],
+         "TYPE_SEND"=> $row["TYPE_SEND"],
+         "STATUS"=> $row["STATUS"],
+         "PACKAGE_URL"=> $docks['url'],
+         "DATE_CREATE"=> $row["DATE_CREATE"]->format('d.m.Y'),
+             ];
+         }
+         return $result;
+     }
+     public static function getAllSend($query, $nav, \CRestServer $server){
+         \Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+         $dealId=$query['dealID'];
+ 
+         $res = MwsSedFdocSendTable::getList(["filter"=>[
+             "DEAL_ID" => $dealId,
+             "TYPE_SEND"=>"SIGNED",
+         ]]);
+ 
+             $result = [];
+             $credentials = [
+                 'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+                 'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+                 'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+                 'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+                 'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+                 'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+                 'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+             ];
+     
+             $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+     
+     
+             $auth = [
+                 "apiKey" => $credentials['keyApi'],
+                 "grant" => $credentials['base64'],
+                 "grantType" => "password",
+                 "app" => $corpId,
+                 "corpId" => $corpId
+             ];
+     
+     
+             //получение токена
+             $curl = curl_init();
+     
+             curl_setopt_array($curl, array(
+                 CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+                 CURLOPT_RETURNTRANSFER => true,
+                 CURLOPT_ENCODING => '',
+                 CURLOPT_MAXREDIRS => 10,
+                 CURLOPT_TIMEOUT => 0,
+                 CURLOPT_FOLLOWLOCATION => true,
+                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                 CURLOPT_CUSTOMREQUEST => 'POST',
+                 CURLOPT_POSTFIELDS => json_encode($auth),
+                 CURLOPT_HTTPHEADER => array(
+                     'Content-Type: application/json'
+                 ),
+             ));
+     
+             $tokenRAW = curl_exec($curl);
+     
+             curl_close($curl);
+     
+             $token = json_decode($tokenRAW, true)['accessToken'];
+     
+     
+     
+     
+            
+     
+     
+             while($row=$res->fetch()){
+     
+                 $curl = curl_init();
+                 $build =  http_build_query([
+                     'id'=>$row["SEND_ID"],
+                     "idType"=>'package'
+                 ]);
+         
+         
+                 curl_setopt_array($curl, array(
+                     CURLOPT_URL => $credentials['urlApi'].'/api/v1/document?'.$build,
+                     CURLOPT_RETURNTRANSFER => true,
+                     CURLOPT_ENCODING => '',
+                     CURLOPT_MAXREDIRS => 10,
+                     CURLOPT_TIMEOUT => 0,
+                     CURLOPT_FOLLOWLOCATION => true,
+                     CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                     CURLOPT_CUSTOMREQUEST => 'GET',
+                     CURLOPT_HTTPHEADER => array(
+                         'Content-Type: application/json',
+                         'Authorization: ' . $token,
+                     ),
+                 ));
+         
+                 $responseDocument = curl_exec($curl);
+         
+                 curl_close($curl);
+                 $docks = json_decode($responseDocument,true);
+                 $result[] = [
+                 "ID"=> $row["ID"],
+             "ENTITY_ID"=> $row["ENTITY_ID"],
+             "DEAL_ID"=> $row["DEAL_ID"],
+             "SEND_ID"=> $row["SEND_ID"],
+             "DOC_NAME"=> $row["DOC_NAME"],
+             "TYPE_SEND"=> $row["TYPE_SEND"],
+             "STATUS"=> $row["STATUS"],
+             "PACKAGE_URL"=> $docks['url'],
+             "DATE_CREATE"=> $row["DATE_CREATE"]->format('d.m.Y'),
+                 ];
+             }
+ 
+         return $result;
+     }
     public static function getClientData($query, $nav, \CRestServer $server)
     {
         \Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
@@ -72,8 +281,16 @@ class MwsSedFdocRest extends IRestService
             ],
             "select"=>[
                 'UF_CRM_1693484556784',
-                'FULL_NAME'=>'COM_NAME.TITLE'
-
+                'FULL_NAME'=>'COM_NAME.TITLE',
+                'UF_CRM_1696253603031',//дата рождения
+                'UF_CRM_1714725844125',//Место рождения
+                'UF_CRM_1731403948',//Тип документа
+                'UF_CRM_1696253537606',//Серия паспорта
+                'UF_CRM_1696253547486',//номер паспорта
+                'UF_CRM_1696253588254',//Дата выдачи паспорта
+                'UF_CRM_1696253557302',//Кем выдан
+                'UF_CRM_1696253488471',//Адрес регистрации
+                 "UF_CRM_1738550624",   
             ],
 
         ])->fetch();
@@ -83,7 +300,21 @@ class MwsSedFdocRest extends IRestService
         if(!$res['UF_CRM_1693484556784']){
             return 'no phone';
         }
-        return $res;
+        return [
+              
+                'UF_CRM_1693484556784'=>$res['UF_CRM_1693484556784'],
+                'FULL_NAME'=>$res['FULL_NAME'],
+
+                'UF_CRM_1696253603031'=>$res['UF_CRM_1696253603031'] ? $res['UF_CRM_1696253603031']->toString():"",//дата рождения
+                'UF_CRM_1714725844125'=>$res['UF_CRM_1714725844125'],//Место рождения
+                'UF_CRM_1731403948'=>$res['UF_CRM_1731403948'],//Тип документа
+                'UF_CRM_1696253537606'=>$res['UF_CRM_1696253537606'],//Серия паспорта
+                'UF_CRM_1696253547486'=>$res['UF_CRM_1696253547486'],//номер паспорта
+                'UF_CRM_1696253588254'=>$res['UF_CRM_1696253588254']?$res['UF_CRM_1696253588254']->toString():"",//Дата выдачи паспорта
+                'UF_CRM_1696253557302'=>$res['UF_CRM_1696253557302'],//Кем выдан
+                'UF_CRM_1696253488471'=>$res['UF_CRM_1696253488471'],//Адрес регистрации
+                'UF_CRM_1738550624'=>$res['UF_CRM_1738550624']?$res['UF_CRM_1738550624']->toString():"",
+            ];
     }
     public static function getDocList($query, $nav, \CRestServer $server)
     {
@@ -156,17 +387,104 @@ class MwsSedFdocRest extends IRestService
 //    }
     public static  function webhookSigned($query, $nav, \CRestServer $server)
     {
-
-
-
         \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhookSigned_log.log");
+             $data = $query;
+            // \Bitrix\Main\Loader::includeModule("crm");
+            // \Bitrix\Main\Loader::includeModule("mws.sed.fdoc");
+            // // Согласие на ЭДО UF_CRM_1738291314 (сделки)
+            // // Документы получены UF_CRM_1738291397 (сделки)
+            // // Согласие на ЭДО UF_CRM_1737619490 (клиент)
+            // //Запрашиваем из таблицы данные
+            // $send = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+            //                "SEND_ID" => $data['packageId'],
+            //            ]])->fetch();
+
+            //забираем Компанию и сделку обрабатывем данные 
+            $res = MwsSedFdocSendTable::getList([
+                'filter'=>['SEND_ID'=>$data['packageId']]
+                ]);
+               // // Согласие на ЭДО UF_CRM_1738291314 (сделки)
+                    // // Документы получены UF_CRM_1738291397 (сделки)
+                    // // Согласие на ЭДО UF_CRM_1737619490 (клиент)
+                $answer = $res->fetch();
+        
+                // $entityDealType = \CCrmOwnerType::Deal;
+                // $containerDeal = \Bitrix\Crm\Service\Container::getInstance();
+                // $factoryDeal = $containerDeal->getFactory($entityDealType);
+                // $deal = $factoryDeal->getItem($answer['DEAL_ID']); 
+        
+                //     print_r($deal->get('UF_CRM_1738291314'));
+                //     print_r($deal->get('UF_CRM_1738291397'));
+        
+                // $entityCompanyType = \CCrmOwnerType::Company;
+                // $containerCompany = \Bitrix\Crm\Service\Container::getInstance();
+                // $factoryCompany = $containerCompany->getFactory($entityCompanyType);
+                // $company = $factoryCompany->getItem($answer['DEAL_ID']);
+        
+        
+                //     print_r($company->get('UF_CRM_1737619490'));
+                if(!empty($answer)){
+                    $arErrorsTmp =[];
+            \CBPDocument::StartWorkflow(
+                170,
+                array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
+                array(),
+                $arErrorsTmp
+            );
+            }
+
+
+
     }
     public static  function webhookQuery($query, $nav, \CRestServer $server)
     {
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhookSigned_log.log");
+        $data = $query;
+       // \Bitrix\Main\Loader::includeModule("crm");
+       // \Bitrix\Main\Loader::includeModule("mws.sed.fdoc");
+       // // Согласие на ЭДО UF_CRM_1738291314 (сделки)
+       // // Документы получены UF_CRM_1738291397 (сделки)
+       // // Согласие на ЭДО UF_CRM_1737619490 (клиент)
+       // //Запрашиваем из таблицы данные
+       // $send = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList(["filter"=>[
+       //                "SEND_ID" => $data['packageId'],
+       //            ]])->fetch();
 
+       //забираем Компанию и сделку обрабатывем данные 
+       $res = MwsSedFdocSendTable::getList([
+           'filter'=>['SEND_ID'=>$data['packageId']]
+           ]);
+          // // Согласие на ЭДО UF_CRM_1738291314 (сделки)
+               // // Документы получены UF_CRM_1738291397 (сделки)
+               // // Согласие на ЭДО UF_CRM_1737619490 (клиент)
+           $answer = $res->fetch();
+   
+           // $entityDealType = \CCrmOwnerType::Deal;
+           // $containerDeal = \Bitrix\Crm\Service\Container::getInstance();
+           // $factoryDeal = $containerDeal->getFactory($entityDealType);
+           // $deal = $factoryDeal->getItem($answer['DEAL_ID']); 
+   
+           //     print_r($deal->get('UF_CRM_1738291314'));
+           //     print_r($deal->get('UF_CRM_1738291397'));
+   
+           // $entityCompanyType = \CCrmOwnerType::Company;
+           // $containerCompany = \Bitrix\Crm\Service\Container::getInstance();
+           // $factoryCompany = $containerCompany->getFactory($entityCompanyType);
+           // $company = $factoryCompany->getItem($answer['DEAL_ID']);
+   
+   
+           //     print_r($company->get('UF_CRM_1737619490'));
+           if(!empty($answer)){
+               $arErrorsTmp =[];
 
+       \CBPDocument::StartWorkflow(
+           169,
+           array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
+           array(),
+           $arErrorsTmp
+       );
+       }
 
-        \Bitrix\Main\Diag\Debug::writeToFile(print_r($query,true),"","_webhookQuery_log.log");
     }
 
 
@@ -945,8 +1263,10 @@ class MwsSedFdocRest extends IRestService
             $result['F_DOC'] = $response;
             $parse = json_decode($response, true);
             $docks = json_decode($responseDocument,true);
-            \Mywebstor\Fdoc\MwsSedFdocSendTable::update($result['ID'],[
-                'STATUS'=> $parse['status'],
+          // \Bitrix\Main\Diag\Debug::writeToFile(print_r($parse,true),"","_docLog_log.log");
+            \Bitrix\Main\Diag\Debug::writeToFile(print_r($docks,true),"","_docLog_log.log");
+           $res = \Mywebstor\Fdoc\MwsSedFdocSendTable::update($result['ID'],[
+                'STATUS'=> $parse['status']?:'ERROR_SEND',
                 'PACKAGE_URL'=> $docks['url'],
             ]);
         }
@@ -1342,11 +1662,17 @@ class MwsSedFdocRest extends IRestService
         if (!$resl->isSuccess()){
 
             \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getErrorMessages(),true),"","_SED_log.log");
-        }else{
-            \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getID(),true),"","_SED_log.log");
         }
-
-
+        // else{
+        //     \Bitrix\Main\Diag\Debug::writeToFile(  print_r($res->getID(),true),"","_SED_log.log");
+        // }
+        $arErrorsTmp=[];
+        \CBPDocument::StartWorkflow(
+            172,
+            array("crm", "CCrmDocumentDeal", "DEAL_" . $dealId),
+            array(),
+            $arErrorsTmp
+        );
 
         return $response;
 
@@ -1644,13 +1970,283 @@ class MwsSedFdocRest extends IRestService
                  $docId = $result->getData()['id'];
              }
          }
+
+        $item->set('UF_CRM_1738550624', new DateTime());
+        $operation = $factory->getUpdateOperation($item);
+        $result = $operation
+        ->disableCheckFields() //Не проверять обязательные поля
+        ->disableCheckAccess() //Не проверять права доступа
+        ->disableAfterSaveActions() //Не запускать события OnAfterCrmLeadAdd
+        ->disableAutomation() //Запускать роботов (по идее должны по умолчанию запускаться)
+        ->disableBizProc() //Запускать бизнес-процессы (по идее должны по умолчанию запускаться)
+        ->launch(); //Запуск
+
          return 'ok';
 
     }
 
+    public static function recognize($query, $nav, \CRestServer $server)
+    {
+//    use Bitrix\Main\Config\Option;
+//    use Bitrix\Main\Loader;
+//    use Mywebstor\Fdoc\MwsSedFdocUsersTable;
+//    use Mywebstor\Fdoc\MwsSedFdocSendTable;
+//    use \Bitrix\Main\Type\DateTime;
+//    use Mywebstor\DealEntity\JobTable;
+//    use Mywebstor\DealEntity\ConsumablesTable;
+
+          $dealId = $query['dealId'];
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+        $arErrorsTmp=[];
+        $entityTypeID = \CCrmOwnerType::Deal;
+
+        $factory = Bitrix\Crm\Service\Container::getInstance()->getFactory($entityTypeID);
+
+        $item = $factory->getItem($dealId);
+
+        print_r($item->get('UF_CRM_1729243587731'));
 
 
-    //функция на основе шаблонов для переформирования данных
+        $res = CFile::GetByID(68546);
+        $file= $res->fetch();
+
+
+
+
+        $base = file_get_contents('http://' . $_SERVER['SERVER_NAME'] . $file['SRC']);
+
+
+
+        $arrFiles = [
+
+
+            'documentsPhoto' => base64_encode($base),
+            'fileExtension'=>"pdf"
+
+        ];
+
+        $credentials = [
+            'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+            'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+            'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+            'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+            'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+            'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+            'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+        ];
+
+        $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+
+        $auth = [
+            "apiKey" => $credentials['keyApi'],
+            "grant" => $credentials['base64'],
+            "grantType" => "password",
+            "app" => $corpId,
+            "corpId" => $corpId
+        ];
+
+
+        //получение токена
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($auth),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json'
+            ),
+        ));
+
+        $tokenRAW = curl_exec($curl);
+
+        curl_close($curl);
+
+        $token = json_decode($tokenRAW, true)['accessToken'];
+
+        $curl = curl_init();
+
+
+        $curl = curl_init();
+
+
+        $arrFiles = [
+
+
+            'documentsPhoto' => base64_encode($base),
+            'fileExtension'=>"pdf"
+
+        ];
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $credentials['urlApi'] . '/api/v1/docs/by/client/recognize',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode( $arrFiles),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Authorization: ' . $token,
+
+            ),
+        ));
+
+        $responseDoc= curl_exec($curl);
+
+        curl_close($curl);
+
+
+        print_r(json_decode($responseDoc,true));
+    }
+    public static function downloadDocs($query, $nav, \CRestServer $server)
+    {
+
+//    use Bitrix\Main\Config\Option;
+//    use Bitrix\Main\Loader;
+//    use Mywebstor\Fdoc\MwsSedFdocUsersTable;
+//    use Mywebstor\Fdoc\MwsSedFdocSendTable;
+//    use \Bitrix\Main\Type\DateTime;
+//    use Mywebstor\DealEntity\JobTable;
+//    use Mywebstor\DealEntity\ConsumablesTable;
+
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        $dealId = $query['dealId'];
+
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
+            "order"=>['ID' => 'DESC'],
+            "filter"=>[
+                "DEAL_ID" => $dealId,
+                "TYPE_SEND"=>"QUERY",
+            ]])->fetch();
+
+        if($result) {
+            $credentials = [
+                'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+                'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+                'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+                'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+                'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+                'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+                'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+            ];
+
+            $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+
+            $auth = [
+                "apiKey" => $credentials['keyApi'],
+                "grant" => $credentials['base64'],
+                "grantType" => "password",
+                "app" => $corpId,
+                "corpId" => $corpId
+            ];
+
+
+            //получение токена
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($auth),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $tokenRAW = curl_exec($curl);
+
+            curl_close($curl);
+
+            $token = json_decode($tokenRAW, true)['accessToken'];
+
+            $curl = curl_init();
+            $build = [
+                'id'=> $result['SEND_ID'],
+                "idType"=>'package'
+            ];
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] .'api/v1/corp/archives/document',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($build),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'Authorization: ' . $token,
+                ),
+            ));
+
+            $responseDocument = curl_exec($curl);
+            print_r($responseDocument);
+            curl_close($curl);
+
+            $docks = json_decode($responseDocument,true);
+            $arrDoc=[
+                'token'=>$docks['token']
+            ];
+
+            $curl = curl_init();
+            $url =parse_url($credentials['urlApi']);
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => 'https://'.$url['host'].'/archive-srv/api/v1/archive/package',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS =>json_encode($arrDoc),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $response = curl_exec($curl);
+
+            curl_close($curl);
+
+            $guid = json_decode($response,true);
+
+            if($guid['result']['status'] == 'OK'){
+                foreach($guid['data']['packageArchives'] as $elem){
+                    print_r("https://".$url['host']."/archive-srv/api/v1/archive/".$docks['token']."/download/".$elem['guid']);
+                }
+            }
+
+
+        }
+
+    }
+
+
+//функция на основе шаблонов для переформирования данных
 
 //     public static function reloadDocuments($query, $nav, \CRestServer $server)
 //     {
