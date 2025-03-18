@@ -1016,7 +1016,7 @@ class MwsSedFdocRest extends IRestService
         $factory = $container->getFactory(\CCrmOwnerType::Company);
         $item = $factory->getItem( $res['COMPANY_ID']);
 //        UF_CRM_1737619304 F.doc (client_id)
-        if(!$item->get('UF_CRM_1737619304')){
+//        if(!$item->get('UF_CRM_1737619304')){
             $uidClient = md5(uniqid(rand(), true));
             $item->set('UF_CRM_1737619304',$uidClient);
             $operation = $factory->getUpdateOperation($item);
@@ -1028,9 +1028,9 @@ class MwsSedFdocRest extends IRestService
                 ->enableBizProc() //Запускать бизнес-процессы (по идее должны по умолчанию запускаться)
                 ->launch(); //Запуск
 
-        }else{
-            $uidClient =$item->get('UF_CRM_1737619304');
-        }
+//        }else{
+//            $uidClient =$item->get('UF_CRM_1737619304');
+//        }
 
 
 
@@ -2123,12 +2123,13 @@ class MwsSedFdocRest extends IRestService
 
         Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
         $dealId = $query['dealId'];
+        $sendType = $query['type'];
 
         $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
             "order"=>['ID' => 'DESC'],
             "filter"=>[
                 "DEAL_ID" => $dealId,
-                "TYPE_SEND"=>"QUERY",
+                "TYPE_SEND"=>$sendType,
             ]])->fetch();
 
         if($result) {
