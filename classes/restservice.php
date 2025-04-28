@@ -281,6 +281,7 @@ class MwsSedFdocRest extends IRestService
                 )
             ],
             "select"=>[
+                'CATEGORY_ID',
                 'UF_CRM_1693484556784',
                 'FULL_NAME'=>'COM_NAME.TITLE',
                 'UF_CRM_1696253603031',//дата рождения
@@ -301,21 +302,41 @@ class MwsSedFdocRest extends IRestService
         if(!$res['UF_CRM_1693484556784']){
             return 'no phone';
         }
-        return [
+        if($res['CATEGORY_ID'] == 1) {
+            return [
 
-            'UF_CRM_1693484556784'=>$res['UF_CRM_1693484556784'],
-            'FULL_NAME'=>$res['FULL_NAME'],
+                'UF_CRM_1693484556784' => $res['UF_CRM_1693484556784'],
+                'FULL_NAME' => $res['FULL_NAME'],
+                'CATEGORY_ID' => $res['CATEGORY_ID'],
+                'UF_CRM_1696253603031' => $res['UF_CRM_1696253603031'] ? $res['UF_CRM_1696253603031']->toString() : "",//дата рождения
+                'UF_CRM_1714725844125' => $res['UF_CRM_1714725844125'],//Место рождения
+                'UF_CRM_1731403948' => $res['UF_CRM_1731403948'],//Тип документа
+                'UF_CRM_1696253537606' => $res['UF_CRM_1696253537606'],//Серия паспорта
+                'UF_CRM_1696253547486' => $res['UF_CRM_1696253547486'],//номер паспорта
+                'UF_CRM_1696253588254' => $res['UF_CRM_1696253588254'] ? $res['UF_CRM_1696253588254']->toString() : "",//Дата выдачи паспорта
+                'UF_CRM_1696253557302' => $res['UF_CRM_1696253557302'],//Кем выдан
+                'UF_CRM_1696253488471' => $res['UF_CRM_1696253488471'],//Адрес регистрации
+                'UF_CRM_1738550624' => $res['UF_CRM_1738550624'] ? $res['UF_CRM_1738550624']->toString() : "",
+            ];
+        }else{
+            return [
 
-            'UF_CRM_1696253603031'=>$res['UF_CRM_1696253603031'] ? $res['UF_CRM_1696253603031']->toString():"",//дата рождения
-            'UF_CRM_1714725844125'=>$res['UF_CRM_1714725844125'],//Место рождения
-            'UF_CRM_1731403948'=>$res['UF_CRM_1731403948'],//Тип документа
-            'UF_CRM_1696253537606'=>$res['UF_CRM_1696253537606'],//Серия паспорта
-            'UF_CRM_1696253547486'=>$res['UF_CRM_1696253547486'],//номер паспорта
-            'UF_CRM_1696253588254'=>$res['UF_CRM_1696253588254']?$res['UF_CRM_1696253588254']->toString():"",//Дата выдачи паспорта
-            'UF_CRM_1696253557302'=>$res['UF_CRM_1696253557302'],//Кем выдан
-            'UF_CRM_1696253488471'=>$res['UF_CRM_1696253488471'],//Адрес регистрации
-            'UF_CRM_1738550624'=>$res['UF_CRM_1738550624']?$res['UF_CRM_1738550624']->toString():"",
-        ];
+                'UF_CRM_1693484556784' => $res['UF_CRM_1693484556784'],
+                'FULL_NAME' => $res['FULL_NAME'],
+                'CATEGORY_ID' => $res['CATEGORY_ID'],
+
+//                'UF_CRM_1696253603031' => $res['UF_CRM_1696253603031'] ? $res['UF_CRM_1696253603031']->toString() : "",//дата рождения
+//                'UF_CRM_1714725844125' => $res['UF_CRM_1714725844125'],//Место рождения
+//                'UF_CRM_1731403948' => $res['UF_CRM_1731403948'],//Тип документа
+//                'UF_CRM_1696253537606' => $res['UF_CRM_1696253537606'],//Серия паспорта
+//                'UF_CRM_1696253547486' => $res['UF_CRM_1696253547486'],//номер паспорта
+//                'UF_CRM_1696253588254' => $res['UF_CRM_1696253588254'] ? $res['UF_CRM_1696253588254']->toString() : "",//Дата выдачи паспорта
+//                'UF_CRM_1696253557302' => $res['UF_CRM_1696253557302'],//Кем выдан
+//                'UF_CRM_1696253488471' => $res['UF_CRM_1696253488471'],//Адрес регистрации
+//                'UF_CRM_1738550624' => $res['UF_CRM_1738550624'] ? $res['UF_CRM_1738550624']->toString() : "",
+            ];
+
+        }
     }
     public static function getDocList($query, $nav, \CRestServer $server)
     {
@@ -424,13 +445,17 @@ class MwsSedFdocRest extends IRestService
 
 
         //     print_r($company->get('UF_CRM_1737619490'));
+        $arErrorsTmp =[];
         if(!empty($answer)){
-            \CBPDocument::StartWorkflow(
-                170,
-                array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
-                array(),
-                $arErrorsTmp
-            );
+            if($data['status'] = 'SIGNED' ) {
+//                   self::downloadDocsWebhook($answer['DEAL_ID'],$answer['TYPE_SEND']);
+                \CBPDocument::StartWorkflow(
+                    170,
+                    array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
+                    array(),
+                    $arErrorsTmp
+                );
+            }
         }
 
 
@@ -474,13 +499,18 @@ class MwsSedFdocRest extends IRestService
 
 
         //     print_r($company->get('UF_CRM_1737619490'));
+        $arErrorsTmp =[];
         if(!empty($answer)){
-            \CBPDocument::StartWorkflow(
-                169,
-                array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
-                array(),
-                $arErrorsTmp
-            );
+            if($data['status'] = 'APPROVED_SCANS' ) {
+//                   self::downloadDocsWebhook($answer['DEAL_ID'],$answer['TYPE_SEND']);
+
+                \CBPDocument::StartWorkflow(
+                    169,
+                    array("crm", "CCrmDocumentDeal", "DEAL_" . $answer['DEAL_ID']),
+                    array(),
+                    $arErrorsTmp
+                );
+            }
         }
 
     }
@@ -2196,29 +2226,15 @@ class MwsSedFdocRest extends IRestService
                 "corpId" => $corpId
             ];
 
-
-
-
-
-
             $entityTypeID = \CCrmOwnerType::Deal;
 
             $factory = Bitrix\Crm\Service\Container::getInstance()->getFactory($entityTypeID);
 
             $item = $factory->getItem($dealId);
 
-
             $lkID = $item->get('UF_CRM_1711861437');
 
-
             if(!$lkID) return 'noLK';
-
-
-
-
-
-
-
 
             //получение токена
             $curl = curl_init();
@@ -2404,6 +2420,228 @@ class MwsSedFdocRest extends IRestService
         }
 
     }
+
+    //TODO метод для получения файлов из вебхука
+
+    public static function downloadDocsWebhook($dealId, $type)
+    {
+        Bitrix\Main\Loader::includeModule('mws.sed.fdoc');
+        Bitrix\Main\Loader::includeModule('crm');
+
+        $result = \Mywebstor\Fdoc\MwsSedFdocSendTable::getList([
+            "order"=>['ID' => 'DESC'],
+            "filter"=>[
+                "DEAL_ID" => $dealId,
+                "TYPE_SEND"=> $type,
+            ]])->fetch();
+
+        if($result) {
+            $credentials = [
+                'urlApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_urlApi', ''),
+                'keyApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_keyApi', ''),
+                'loginApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_loginApi', ''),
+                'passwordApi' => Option::get('mws.sed.fdoc', 'credentials_fdoc_passwordApi', ''),
+                'login' => Option::get('mws.sed.fdoc', 'credentials_fdoc_login', ''),
+                'password' => Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''),
+                'base64' => base64_encode(Option::get('mws.sed.fdoc', 'credentials_fdoc_login', '') . ":" . Option::get('mws.sed.fdoc', 'credentials_fdoc_password', ''))
+            ];
+
+            $corpId = Option::get('mws.sed.fdoc', 'credentials_fdoc_corpId', "");
+
+
+            $auth = [
+                "apiKey" => $credentials['keyApi'],
+                "grant" => $credentials['base64'],
+                "grantType" => "password",
+                "app" => $corpId,
+                "corpId" => $corpId
+            ];
+
+            $entityTypeID = \CCrmOwnerType::Deal;
+
+            $factory = Bitrix\Crm\Service\Container::getInstance()->getFactory($entityTypeID);
+
+            $item = $factory->getItem($dealId);
+
+            $lkID = $item->get('UF_CRM_1711861437');
+
+            if(!$lkID) return 'noLK';
+
+            //получение токена
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] . 'api/v1/operator/accessToken',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($auth),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $tokenRAW = curl_exec($curl);
+
+            curl_close($curl);
+
+            $token = json_decode($tokenRAW, true)['accessToken'];
+
+            $curl = curl_init();
+            $build = [
+                'id'=> $result['SEND_ID'],
+                "idType"=>"package"//package
+            ];
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $credentials['urlApi'] .'api/v1/corp/archives/document',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode($build),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'Authorization: ' . $token,
+                ),
+            ));
+
+            $responseDocument = curl_exec($curl);
+
+            curl_close($curl);
+
+            $docks = json_decode($responseDocument,true);
+
+            $arrDoc=[
+                'token'=>$docks['token']
+            ];
+
+            $curl = curl_init();
+            $url =parse_url($credentials['urlApi']);
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => 'https://'.$url['host'].'/archive-srv/api/v1/archive/package',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS =>json_encode($arrDoc),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json'
+                ),
+            ));
+
+            $response = curl_exec($curl);
+
+            curl_close($curl);
+
+            $guid = json_decode($response,true);
+
+
+
+            if($guid['data']['status'] == 'IN_PROCESS' ){
+                sleep(5);
+                $curl = curl_init();
+                $url =parse_url($credentials['urlApi']);
+
+                curl_setopt_array($curl, array(
+                    CURLOPT_URL => 'https://'.$url['host'].'/archive-srv/api/v1/archive/package',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_ENCODING => '',
+                    CURLOPT_MAXREDIRS => 10,
+                    CURLOPT_TIMEOUT => 0,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                    CURLOPT_CUSTOMREQUEST => 'POST',
+                    CURLOPT_POSTFIELDS =>json_encode($arrDoc),
+                    CURLOPT_HTTPHEADER => array(
+                        'Content-Type: application/json'
+                    ),
+                ));
+
+                $response = curl_exec($curl);
+
+                curl_close($curl);
+
+                $guid = json_decode($response,true);
+
+            }
+
+            $theArchives =[];
+
+
+            $arErrorsTmp=[];
+
+            if($guid['result']['status'] == 'OK'){
+
+
+
+                foreach($guid['data']['packageArchives'] as $elem){
+
+
+                    $theArchive ="https://".$url['host']."/archive-srv/api/v1/archive/".$docks['token']."/download/".$elem['guid'];
+                    file_put_contents('/home/bitrix/www/upload/tmps_fdoc/' .$elem['name'], file_get_contents($theArchive));
+                    $temp = '/home/bitrix/www/upload/tmps_fdoc/' . $elem['name'];
+                    $theArchives  = \CFile::MakeFileArray('/home/bitrix/www/upload/tmps_fdoc/' .$elem['name']);
+
+                    // $fid = \CFile::SaveFile($fileArray,"fdoc");
+
+                    //$item->set('UF_CRM_1729243587731',  $fid);
+
+
+
+                }
+            }
+
+
+            //$entityTypeID = \CCrmOwnerType::Deal;
+
+            $factoryLK = Bitrix\Crm\Service\Container::getInstance()->getFactory(166);
+
+            $LK = $factoryLK->getItem($lkID[0]);
+
+
+
+            if($type == 'QUERY'){
+                $files  = $LK->get('UF_CRM_5_1742376017');
+                $files['n'.(count($files)+1)] = $theArchives;
+                $LK->set('UF_CRM_5_1742376017',$files);
+
+            }
+            if($type == 'SIGNED'){
+
+                $files  = $LK->get('UF_CRM_5_1713766274009');
+                $files['n'.(count($files)+1)] = $theArchives;
+                $LK->set('UF_CRM_5_1713766274009',$files);
+            }
+
+            $operation =  $factoryLK->getUpdateOperation($LK);
+
+            $result = $operation
+                ->disableCheckFields()
+                ->disableCheckAccess()
+                ->disableAfterSaveActions()
+                ->enableAutomation()
+                ->enableBizProc()
+                ->launch();
+            unlink($temp);
+            return  'OK';
+        }
+
+    }
+
+
 
 
     //функция на основе шаблонов для переформирования данных
